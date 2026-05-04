@@ -592,7 +592,7 @@ export function AppDrawer({
               <p className="aboutVersion">Version {APP_CONFIG.version}</p>
               <p className="aboutDescription">
                 A customizable desktop control surface for launching apps, opening links,
-                playing sounds, and organizing quick actions into profiles.
+                playing sounds, opening folders, and organizing quick actions into profiles.
               </p>
               <p className="authorMe">Antonis Georgosopoulos</p>
             </div>
