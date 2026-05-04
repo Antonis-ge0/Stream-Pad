@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Stream Deck",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.pc.streamdeck-clone",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -45,7 +45,7 @@
       "windows": {
         "installMode": "passive"
       },
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI0NDJEMjc4QUMxQ0MzOEMKUldTTXd4eXNlTkpDdElMWnBQc1E0SUkvakJ4bjNUcFZWSGdnN1RBVml5RmFWc0dKWkprNG1CRFYK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwN0U4RTRCREE4OTcwNgpSV1FHbDZpOTVPZ0hCNEVlNk5QZkpBY3ZzbVhQVXJtTUlnQUIxVVdXWDNFVFZpbzRPSXJ6SkpWdQo=",
       "endpoints": [
         "https://github.com/Antonis-ge0/Stream-Deck/releases/latest/download/latest.json"
       ]
