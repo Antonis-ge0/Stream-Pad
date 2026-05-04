@@ -1,0 +1,318 @@
+.buttonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 14px;
+}
+
+.buttonGridList {
+  width: min(720px, 100%);
+  margin: 8px auto 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: 48px;
+  align-content: start;
+  gap: 8px;
+}
+
+.deckButton {
+  position: relative;
+  height: 110px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 10px 25px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.deckButtonList {
+  height: 48px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0 42px 0 14px;
+  border-radius: 14px;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+}
+
+.deckButton:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+}
+
+.deckButton.dropActive {
+  border-color: var(--primary);
+  box-shadow: 0 14px 30px var(--shadow);
+}
+
+.deckButton.selected {
+  outline: 2px solid var(--primary);
+}
+
+.deckButton img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.deckButtonList img {
+  width: 24px;
+  height: 24px;
+}
+
+.deckButton .deckButtonLabel {
+  font-size: 13px;
+  text-align: center;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deckButtonList .deckButtonLabel {
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  display: block;
+  text-align: left;
+  flex: 1;
+  font-size: 13px;
+}
+
+.emptyIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--border);
+}
+
+.deckButtonList .emptyIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+}
+
+.emojiIcon {
+  font-size: 36px;
+}
+
+.deckButtonList .emojiIcon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dragHandle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  opacity: 0.65;
+}
+
+.selectionMarker {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--primary-text);
+  display: grid;
+  place-items: center;
+}
+
+.selectionMarker.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.deckButtonList .selectionMarker {
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+}
+
+.deckButtonList.selectionEnabled {
+  padding-left: 38px;
+}
+
+.buttonGridList .dragHandle {
+  top: 50%;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+}
+
+.buttonGridList .dragHandle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.deckPagination {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.deckPagination span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.deckPagination button {
+  min-width: 8px;
+}
+
+.dragHandle:hover {
+  opacity: 1;
+  background: var(--border);
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.inspectorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.previewCard {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  border-radius: 18px;
+  padding: 20px;
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+}
+
+.previewCard img {
+  width: 60px;
+  height: 60px;
+}
+
+.previewCard .emojiIcon {
+  font-size: 50px;
+}
+
+.form {
+  display: grid;
+  gap: 10px;
+}
+
+.actionTypePicker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.actionTypeButton {
+  min-width: 0;
+  min-height: 64px;
+  padding: 12px 10px;
+  border-radius: 14px;
+  font-weight: 600;
+  flex-direction: column;
+  gap: 7px;
+  background: var(--panel-soft);
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.actionTypeButton svg {
+  flex-shrink: 0;
+}
+
+.actionTypeButton span {
+  line-height: 1;
+}
+
+.actionTypeButton.active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 18%, white);
+}
+
+.actionTypeButton.active:hover {
+  background: color-mix(in srgb, var(--primary) 16%, white);
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.actionTypeButton:hover {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.inspectorActions {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.inspectorActionsSingle {
+  grid-template-columns: 1fr;
+}
+
+.fileButton {
+  display: block;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  background: var(--panel-soft);
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.fileButton input {
+  display: none;
+}
+
+.errorBanner {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  top: 16px;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--danger);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px var(--shadow);
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.errorBanner p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
