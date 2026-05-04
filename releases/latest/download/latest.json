@@ -1,19 +1,19 @@
 {
-  "version": "",
-  "notes": "",
-  "pub_date": "",
+  "version": "1.0.1",
+  "notes": "Test",
+  "pub_date": "2026-05-04T22:47:09.000Z",
   "platforms": {
     "linux-x86_64": {
-      "signature": "",
-      "url": ""
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTXd4eXNlTkpDdElVTVU1NmVRMzdpMzJaK0QwTlNjVE9HYVNkakorT0VWQ0FqR2tucjZXdE5hQWNIaEgvaXFOenBjSG16NkxhMDZ1MUJEYVpHaEozbVNmMEpoSHEzNXdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3OTIzNzYwCWZpbGU6U3RyZWFtIERlY2tfMC4xLjBfeDY0X2VuLVVTLm1zaQowWGdwaVNmSnJYNlEvRUcxNjlxMUFSRlpPMGl3Smx2NkVSVzhicmFpOWNUbTQ4aWViQ1VlZFVPYVJEOWpsTk9Na3JkRkNHRTR2QUFOTXE5NjRKRlJEdz09Cg==",
+      "url": "https://github.com/Antonis-ge0/Stream-Deck.git"
     },
     "windows-x86_64": {
-      "signature": "",
-      "url": ""
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTXd4eXNlTkpDdElVTVU1NmVRMzdpMzJaK0QwTlNjVE9HYVNkakorT0VWQ0FqR2tucjZXdE5hQWNIaEgvaXFOenBjSG16NkxhMDZ1MUJEYVpHaEozbVNmMEpoSHEzNXdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3OTIzNzYwCWZpbGU6U3RyZWFtIERlY2tfMC4xLjBfeDY0X2VuLVVTLm1zaQowWGdwaVNmSnJYNlEvRUcxNjlxMUFSRlpPMGl3Smx2NkVSVzhicmFpOWNUbTQ4aWViQ1VlZFVPYVJEOWpsTk9Na3JkRkNHRTR2QUFOTXE5NjRKRlJEdz09Cg==",
+      "url": "https://github.com/Antonis-ge0/Stream-Deck.git"
     },
     "darwin-x86_64": {
-      "signature": "",
-      "url": ""
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTXd4eXNlTkpDdElVTVU1NmVRMzdpMzJaK0QwTlNjVE9HYVNkakorT0VWQ0FqR2tucjZXdE5hQWNIaEgvaXFOenBjSG16NkxhMDZ1MUJEYVpHaEozbVNmMEpoSHEzNXdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3OTIzNzYwCWZpbGU6U3RyZWFtIERlY2tfMC4xLjBfeDY0X2VuLVVTLm1zaQowWGdwaVNmSnJYNlEvRUcxNjlxMUFSRlpPMGl3Smx2NkVSVzhicmFpOWNUbTQ4aWViQ1VlZFVPYVJEOWpsTk9Na3JkRkNHRTR2QUFOTXE5NjRKRlJEdz09Cg==",
+      "url": "https://github.com/Antonis-ge0/Stream-Deck.git"
     }
   }
 }
