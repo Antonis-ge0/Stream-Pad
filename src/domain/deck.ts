@@ -1,6 +1,15 @@
 export type DeckConfig = {
   activeProfileId: string;
   profiles: Profile[];
+  settings: DeckSettings;
+};
+
+export type DeckSettings = {
+  launchOnStartup: boolean;
+  startMinimizedToTray: boolean;
+  confirmBeforeDelete: boolean;
+  defaultDeckView: "tile" | "list";
+  buttonTriggerMode: "singleClick" | "doubleClick";
 };
 
 export type Profile = {

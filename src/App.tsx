@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, ImageIcon, Menu, Plus, Trash } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { disable, enable } from "@tauri-apps/plugin-autostart";
 import { DeckPanel } from "@/components/deck/DeckPanel";
 import { AppDrawer } from "@/components/drawer/AppDrawer";
 import { ErrorBanner } from "@/components/feedback/ErrorBanner";
@@ -51,10 +52,12 @@ export default function App() {
     isButtonSelectionMode,
     isLoading,
     isProfileLimitReached,
+    settings,
     sensors,
     setConfirmDelete,
     clearError,
     persist,
+    updateSettings,
     addProfile,
     editProfileName,
     clearButtonSelection,
@@ -284,6 +287,26 @@ export default function App() {
     }
   }
 
+  async function handleUpdateSettings(nextSettings: typeof settings) {
+    const previousSettings = settings;
+
+    updateSettings(() => nextSettings);
+
+    if (previousSettings.launchOnStartup === nextSettings.launchOnStartup) {
+      return;
+    }
+
+    try {
+      if (nextSettings.launchOnStartup) {
+        await enable();
+      } else {
+        await disable();
+      }
+    } catch {
+      updateSettings(() => previousSettings);
+    }
+  }
+
   return (
     <main className="appShell">
       <CustomTitleBar />
@@ -365,10 +388,12 @@ export default function App() {
         onMouseDown={handleWorkspaceMouseDown}
       >
         <DeckPanel
+          defaultViewMode={settings.defaultDeckView}
           profile={activeProfile}
           selectedButtonId={selectedButtonId}
           selectedButtonIds={selectedButtonIds}
           selectionMode={isButtonSelectionMode}
+          triggerMode={settings.buttonTriggerMode}
           sensors={sensors}
           onAddButton={addButton}
           onCreateProfile={() => setShowNewProfileModal(true)}
@@ -495,8 +520,10 @@ export default function App() {
 
       {showAppDrawer && (
         <AppDrawer
+          settings={settings}
           theme={theme}
           onClose={() => setShowAppDrawer(false)}
+          onUpdateSettings={handleUpdateSettings}
           onThemeToggle={toggleTheme}
         />
       )}

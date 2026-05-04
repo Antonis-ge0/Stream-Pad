@@ -75,12 +75,12 @@
 }
 
 .windowControlButton:hover {
-  background: var(--panel-soft);
+  background: var(--hover-bg);
 }
 
 .windowControlButton.close:hover {
   background: var(--danger);
-  color: white;
+  color: var(--white);
 }
 
 .topbar {
@@ -162,7 +162,16 @@
   color: var(--action-hover);
 }
 
+.topbarTextButton:hover svg,
+.topbarIconButton:hover svg {
+  color: var(--action-hover);
+}
+
 .topbarDangerButton:hover {
+  color: var(--danger);
+}
+
+.topbarDangerButton:hover svg {
   color: var(--danger);
 }
 
@@ -240,12 +249,12 @@
 
 .viewModeToggle button:hover {
   color: var(--text);
-  background: rgb(255 255 255 / 6%);
+  background: var(--hover-bg);
 }
 
 .viewModeToggle button.active {
   color: var(--primary);
-  background: rgb(0 122 255 / 12%);
+  background: var(--active-soft);
 }
 
 .addButtonWrapper {
@@ -273,7 +282,7 @@
   border-radius: 12px;
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 12px 30px rgb(0 0 0 / 18%);
+  box-shadow: 0 12px 30px var(--shadow);
   font-size: 13px;
   font-weight: 600;
   opacity: 0;

@@ -14,6 +14,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WindowEvent,
 };
+use tauri_plugin_autostart::MacosLauncher;
 use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 
@@ -22,6 +23,45 @@ use tokio_tungstenite::accept_async;
 struct DeckConfig {
     active_profile_id: String,
     profiles: Vec<Profile>,
+    #[serde(default)]
+    settings: DeckSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DeckSettings {
+    launch_on_startup: bool,
+    start_minimized_to_tray: bool,
+    confirm_before_delete: bool,
+    default_deck_view: DeckViewMode,
+    button_trigger_mode: ButtonTriggerMode,
+}
+
+impl Default for DeckSettings {
+    fn default() -> Self {
+        Self {
+            launch_on_startup: false,
+            start_minimized_to_tray: false,
+            confirm_before_delete: true,
+            default_deck_view: DeckViewMode::Tile,
+            button_trigger_mode: ButtonTriggerMode::SingleClick,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+enum DeckViewMode {
+    Tile,
+    List,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+enum ButtonTriggerMode {
+    SingleClick,
+    DoubleClick,
+    ConfirmBeforeRun,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -473,6 +513,7 @@ fn default_config() -> DeckConfig {
     DeckConfig {
         active_profile_id: "".into(),
         profiles: vec![],
+        settings: DeckSettings::default(),
     }
 }
 
@@ -615,6 +656,27 @@ fn label_for_url(url: &str) -> String {
         "Website".to_string()
     } else {
         host.to_string()
+    }
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let normalized_url = normalize_web_url(&url).ok_or("Invalid URL")?;
+
+    open::that(normalized_url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_default_apps_settings() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        open::that("ms-settings:defaultapps").map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    {
+        Err("Default app settings are managed by your operating system.".to_string())
     }
 }
 
@@ -1105,10 +1167,15 @@ fn install_native_drop_handler(_app: &AppHandle) {}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--from-autostart"]),
+        ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let initial_config = read_config_from_disk(app.handle())?;
+            let start_minimized_to_tray = initial_config.settings.start_minimized_to_tray;
 
             let state = AppState {
                 config: Arc::new(Mutex::new(initial_config)),
@@ -1119,6 +1186,12 @@ pub fn run() {
 
             tauri::async_runtime::spawn(websocket_server(state));
             install_native_drop_handler(app.handle());
+
+            if start_minimized_to_tray {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
 
             let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -1163,6 +1236,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             describe_dropped_file,
             load_config,
+            open_default_apps_settings,
+            open_external_url,
             save_config,
             trigger_button
         ])

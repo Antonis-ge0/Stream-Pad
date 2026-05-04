@@ -1,27 +1,35 @@
 import {
+  Check,
   ChevronLeft,
-  Copy,
   Download,
   HelpCircle,
   Info,
-  Mail,
+  LayoutGrid,
+  List,
   MessageSquareMore,
   Moon,
+  MousePointer2,
+  MousePointerClick,
+  Rocket,
   RefreshCw,
   Settings,
   Sun,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { APP_CONFIG } from "@/config/appConfig";
+import type { DeckSettings } from "@/domain/deck";
 import type { Theme } from "@/hooks/useTheme";
+import titleBarIcon from "@/assets/titlebar-icon.png";
 
 type DrawerSection = "menu" | "settings" | "help" | "feedback" | "updates" | "about";
 type UpdateStatus = "idle" | "checking" | "available" | "current" | "installing" | "error";
-type FeedbackStatus = "idle" | "copied" | "error";
+type FeedbackStatus = "idle" | "error";
 
 const HELP_TIPS = [
   {
@@ -30,7 +38,7 @@ const HELP_TIPS = [
   },
   {
     title: "Edit a button",
-    description: "Right a button to edit its name, icon, and action in the right panel.",
+    description: "Right-click a button to select it without running, then edit it in the right panel.",
   },
   {
     title: "Reorder buttons",
@@ -60,13 +68,39 @@ const HELP_TIPS = [
 
 const HELP_TIPS_PER_PAGE = 5;
 
+const DECK_VIEW_OPTIONS: {
+  value: DeckSettings["defaultDeckView"];
+  label: string;
+  Icon: LucideIcon;
+}[] = [
+  { value: "tile", label: "Tile", Icon: LayoutGrid },
+  { value: "list", label: "List", Icon: List },
+];
+
+const TRIGGER_MODE_OPTIONS: {
+  value: DeckSettings["buttonTriggerMode"];
+  label: string;
+  Icon: LucideIcon;
+}[] = [
+  { value: "singleClick", label: "Single click", Icon: MousePointerClick },
+  { value: "doubleClick", label: "Double click", Icon: MousePointer2 },
+];
+
 type AppDrawerProps = {
   onClose: () => void;
   onThemeToggle: () => void;
+  onUpdateSettings: (settings: DeckSettings) => void | Promise<void>;
+  settings: DeckSettings;
   theme: Theme;
 };
 
-export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
+export function AppDrawer({
+  onClose,
+  onThemeToggle,
+  onUpdateSettings,
+  settings,
+  theme,
+}: AppDrawerProps) {
   const [section, setSection] = useState<DrawerSection>("menu");
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
@@ -78,14 +112,14 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
     section === "menu"
       ? "Options"
       : section === "settings"
-        ? "General Settings"
+        ? "General"
         : section === "help"
           ? "Help"
           : section === "feedback"
             ? "Share Feedback"
             : section === "updates"
               ? "Check for Updates"
-              : "About Us";
+              : "About";
   const helpPageCount = Math.ceil(HELP_TIPS.length / HELP_TIPS_PER_PAGE);
   const visibleHelpTips = HELP_TIPS.slice(
     (currentHelpPage - 1) * HELP_TIPS_PER_PAGE,
@@ -102,6 +136,13 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
     if (nextSection === "feedback") {
       setFeedbackStatus("idle");
     }
+  }
+
+  function patchSettings(patch: Partial<DeckSettings>) {
+    void onUpdateSettings({
+      ...settings,
+      ...patch,
+    });
   }
 
   function updateErrorMessage(error: unknown) {
@@ -188,43 +229,42 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
     }
   }
 
-  async function handleOpenFeedbackEmail() {
-    try {
-      const subject = encodeURIComponent(`${APP_CONFIG.name} Feedback`);
-      const body = encodeURIComponent(
-        [
-          `App version: ${APP_CONFIG.version}`,
-          "",
-          "What happened:",
-          "",
-          "What you expected:",
-          "",
-          "Steps to reproduce:",
-        ].join("\n"),
-      );
+  async function handleOpenFeedbackForm() {
+    setFeedbackStatus("idle");
 
-      await openUrl(`mailto:?subject=${subject}&body=${body}`);
-    } catch {
+    if (!APP_CONFIG.feedbackFormUrl) {
       setFeedbackStatus("error");
+      return;
     }
+
+    try {
+      await invoke<void>("open_external_url", {
+        url: APP_CONFIG.feedbackFormUrl,
+      });
+      return;
+    } catch {
+      // Fall through to the plugin/browser fallbacks.
+    }
+
+    try {
+      await openUrl(APP_CONFIG.feedbackFormUrl);
+      return;
+    } catch {
+      if (typeof window !== "undefined") {
+        const popup = window.open(APP_CONFIG.feedbackFormUrl, "_blank", "noopener,noreferrer");
+
+        if (popup) {
+          return;
+        }
+      }
+    }
+
+    setFeedbackStatus("error");
   }
 
-  async function handleCopyFeedbackTemplate() {
+  async function handleOpenDefaultAppsSettings() {
     try {
-      await navigator.clipboard.writeText(
-        [
-          `${APP_CONFIG.name} Feedback`,
-          `App version: ${APP_CONFIG.version}`,
-          "",
-          "What happened:",
-          "",
-          "What you expected:",
-          "",
-          "Steps to reproduce:",
-        ].join("\n"),
-      );
-
-      setFeedbackStatus("copied");
+      await invoke<void>("open_default_apps_settings");
     } catch {
       setFeedbackStatus("error");
     }
@@ -258,7 +298,7 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
         {section === "menu" && (
           <div className="drawerSection">
             <button className="drawerMenuItem" onClick={() => handleSectionChange("settings")}>
-              <Settings size={18} /> General Settings
+              <Settings size={18} /> General
             </button>
 
             <button className="drawerMenuItem" onClick={() => handleSectionChange("help")}>
@@ -286,7 +326,7 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
             </button>
 
             <button className="drawerMenuItem" onClick={() => setSection("about")}>
-              <Info size={18} /> About Us
+              <Info size={18} /> About
             </button>
           </div>
         )}
@@ -308,6 +348,121 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
                 </button>
               </div>
             </div>
+
+            <h3>Deck</h3>
+            <div className="drawerField">
+              <span>Default deck view</span>
+              <div className="drawerChoiceList" role="radiogroup" aria-label="Default deck view">
+                {DECK_VIEW_OPTIONS.map(({ value, label, Icon }) => {
+                  const isActive = settings.defaultDeckView === value;
+
+                  return (
+                    <button
+                      aria-checked={isActive}
+                      className={`drawerChoice ${isActive ? "active" : ""}`}
+                      key={value}
+                      onClick={() =>
+                        patchSettings({
+                          defaultDeckView: value,
+                        })
+                      }
+                      role="radio"
+                      type="button"
+                    >
+                      <Icon size={16} />
+                      <span>{label}</span>
+                      {isActive && <Check className="drawerChoiceCheck" size={15} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="drawerField">
+              <span>Button trigger mode</span>
+              <div
+                className="drawerChoiceList"
+                role="radiogroup"
+                aria-label="Button trigger mode"
+              >
+                {TRIGGER_MODE_OPTIONS.map(({ value, label, Icon }) => {
+                  const isActive = settings.buttonTriggerMode === value;
+
+                  return (
+                    <button
+                      aria-checked={isActive}
+                      className={`drawerChoice ${isActive ? "active" : ""}`}
+                      key={value}
+                      onClick={() =>
+                        patchSettings({
+                          buttonTriggerMode: value,
+                        })
+                      }
+                      role="radio"
+                      type="button"
+                    >
+                      <Icon size={16} />
+                      <span>{label}</span>
+                      {isActive && <Check className="drawerChoiceCheck" size={15} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <h3>Startup</h3>
+            <label className="drawerSettingRow">
+              <span>Launch on startup</span>
+              <button
+                aria-checked={settings.launchOnStartup}
+                className={`drawerCheckbox ${settings.launchOnStartup ? "active" : ""}`}
+                onClick={() =>
+                  patchSettings({ launchOnStartup: !settings.launchOnStartup })
+                }
+                role="checkbox"
+                type="button"
+              >
+                <span className="drawerCheckboxIndicator">
+                  {settings.launchOnStartup && <Check size={12} strokeWidth={3} />}
+                </span>
+              </button>
+            </label>
+
+            <label className="drawerSettingRow">
+              <span>Start minimized to tray</span>
+              <button
+                aria-checked={settings.startMinimizedToTray}
+                className={`drawerCheckbox ${settings.startMinimizedToTray ? "active" : ""}`}
+                onClick={() =>
+                  patchSettings({ startMinimizedToTray: !settings.startMinimizedToTray })
+                }
+                role="checkbox"
+                type="button"
+              >
+                <span className="drawerCheckboxIndicator">
+                  {settings.startMinimizedToTray && <Check size={12} strokeWidth={3} />}
+                </span>
+              </button>
+            </label>
+            <p className="drawerHint">Applies on the next app launch.</p>
+
+            <h3>Safety</h3>
+            <label className="drawerSettingRow">
+              <span>Confirm before deleting</span>
+              <button
+                aria-checked={settings.confirmBeforeDelete}
+                className={`drawerCheckbox ${settings.confirmBeforeDelete ? "active" : ""}`}
+                onClick={() =>
+                  patchSettings({ confirmBeforeDelete: !settings.confirmBeforeDelete })
+                }
+                role="checkbox"
+                type="button"
+              >
+                <span className="drawerCheckboxIndicator">
+                  {settings.confirmBeforeDelete && <Check size={12} strokeWidth={3} />}
+                </span>
+              </button>
+            </label>
           </div>
         )}
 
@@ -350,29 +505,37 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
           <div className="drawerSection">
             <div className="aboutCard">
               <h2>Share Feedback</h2>
-              <p>
-                Send ideas, bug reports, or UI notes to help improve the Stream Deck
-                experience.
+              <p>Send ideas, bug reports, or UI notes through a hosted feedback form.</p>
+              <p className="drawerHint">
+                Send ideas, bug reports, or UI notes straight to the hosted form.
               </p>
-              <p className="drawerHint">Pick the option that feels easier in the moment.</p>
             </div>
 
             <div className="drawerActionRow">
-              <button onClick={handleOpenFeedbackEmail}>
-                <Mail size={18} /> Open Email Draft
-              </button>
-
-              <button onClick={handleCopyFeedbackTemplate}>
-                <Copy size={18} /> Copy Feedback Template
+              <button
+                className="drawerMenuItem"
+                disabled={!APP_CONFIG.feedbackFormUrl}
+                onClick={handleOpenFeedbackForm}
+              >
+                <Rocket size={18} /> Open Feedback Form
               </button>
             </div>
 
-            {feedbackStatus === "copied" && (
-              <p className="drawerHint">Feedback template copied to your clipboard.</p>
-            )}
-
             {feedbackStatus === "error" && (
-              <p className="drawerHint">Clipboard access was not available for this action.</p>
+              <>
+                <p className="drawerHint">
+                  The form could not be opened automatically. Check that Windows has a default
+                  browser selected for web links.
+                </p>
+
+                <button
+                  className="drawerMenuItem"
+                  onClick={handleOpenDefaultAppsSettings}
+                  type="button"
+                >
+                  <Settings size={18} /> Open Default Apps Settings
+                </button>
+              </>
             )}
           </div>
         )}
@@ -423,12 +586,14 @@ export function AppDrawer({ onClose, onThemeToggle, theme }: AppDrawerProps) {
 
         {section === "about" && (
           <div className="drawerSection">
-            <div className="aboutCard">
+            <div className="aboutCard aboutHeroCard">
+              <img className="aboutAppIcon" src={titleBarIcon} alt={APP_CONFIG.name} />
               <h2>{APP_CONFIG.name}</h2>
-              <p>
-                A customizable desktop control surface built with React, Tauri, and Rust.
+              <p className="aboutVersion">Version {APP_CONFIG.version}</p>
+              <p className="aboutDescription">
+                A customizable desktop control surface for launching apps, opening links,
+                playing sounds, and organizing quick actions into profiles.
               </p>
-              <p className="drawerHint">Version {APP_CONFIG.version}</p>
               <p className="authorMe">Antonis Georgosopoulos</p>
             </div>
           </div>

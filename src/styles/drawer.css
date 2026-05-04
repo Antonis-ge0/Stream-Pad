@@ -1,7 +1,7 @@
 .drawerBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.3);
+  background: rgb(17 17 19 / 30%);
   z-index: 30;
   display: flex;
   justify-content: flex-end;
@@ -58,6 +58,120 @@
   font-size: 15px;
 }
 
+.drawerField,
+.drawerSettingRow {
+  display: grid;
+  gap: 8px;
+}
+
+.drawerField span,
+.drawerSettingRow span {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.drawerSettingRow {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.drawerCheckbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-soft);
+  color: var(--primary-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.drawerCheckbox:hover {
+  border-color: var(--primary);
+  background: var(--hover-bg);
+}
+
+.drawerCheckbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.drawerCheckbox.active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.drawerCheckboxIndicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-theme="light"] .drawerCheckboxIndicator {
+  color: var(--white);
+}
+
+:root[data-theme="dark"] .drawerCheckboxIndicator {
+  color: var(--onyx);
+}
+
+.drawerChoiceList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.drawerChoice {
+  min-width: 0;
+  min-height: 44px;
+  justify-content: flex-start;
+  border-radius: 8px;
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.drawerChoice:hover {
+  border-color: var(--border-strong);
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+.drawerChoice.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.drawerChoice.active:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.drawerChoice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.drawerChoiceCheck {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .drawerHint,
 .authorMe {
   color: var(--muted);
@@ -109,6 +223,39 @@
   margin-top: 0;
 }
 
+.aboutHeroCard {
+  justify-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 24px 18px;
+}
+
+.aboutAppIcon {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  display: block;
+}
+
+.aboutHeroCard h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.aboutVersion {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.aboutDescription {
+  margin: 0;
+  max-width: 28ch;
+  text-align: center;
+}
+
 .drawerActionRow {
   margin-top: 6px;
   display: flex;
@@ -156,7 +303,7 @@
 .updateProgressFill {
   height: 100%;
   border-radius: inherit;
-  background: #3b82f6;
+  background: var(--primary);
   transition: width 0.18s ease;
 }
 
@@ -203,19 +350,19 @@
 }
 
 .switch.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 .switchThumb {
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--primary-text);
   position: absolute;
   top: 2px;
   left: 2px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 8px var(--shadow);
   transition: transform 0.2s ease;
 }
 

@@ -10,12 +10,15 @@ const MAX_BUTTONS_PER_PROFILE = 20;
 const LIST_BUTTONS_PER_PAGE = 10;
 
 type ViewMode = "tile" | "list";
+type TriggerMode = "singleClick" | "doubleClick";
 
 type DeckPanelProps = {
   profile: Profile | null;
   selectedButtonId: string | null;
   selectedButtonIds: string[];
   selectionMode: boolean;
+  defaultViewMode?: ViewMode;
+  triggerMode?: TriggerMode;
   sensors: SensorDescriptor<SensorOptions>[];
   onAddButton: () => void;
   onCreateProfile?: () => void;
@@ -33,6 +36,8 @@ export function DeckPanel({
   selectedButtonId,
   selectedButtonIds,
   selectionMode,
+  defaultViewMode = "tile",
+  triggerMode = "singleClick",
   sensors,
   onAddButton,
   onCreateProfile,
@@ -44,7 +49,7 @@ export function DeckPanel({
   onToggleSelectionMode,
   onTriggerButton,
 }: DeckPanelProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("tile");
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
   const [currentListPage, setCurrentListPage] = useState(1);
 
   const isButtonLimitReached = (profile?.buttons.length ?? 0) >= MAX_BUTTONS_PER_PROFILE;
@@ -119,6 +124,10 @@ export function DeckPanel({
 
           {profile && (
             <div className="deckButtonActions">
+              <button type="button" onClick={onEditProfile} title="Edit Profile Name">
+                <Edit2 size={18} /> Edit
+              </button>
+
               <div
                 className={
                   isButtonLimitReached
@@ -139,10 +148,6 @@ export function DeckPanel({
                   </div>
                 )}
               </div>
-
-              <button type="button" onClick={onEditProfile} title="Edit Profile Name">
-                <Edit2 size={18} /> Edit
-              </button>
             </div>
           )}
         </div>
@@ -191,6 +196,7 @@ export function DeckPanel({
                         : button.id === selectedButtonId
                     }
                     selectionMode={selectionMode}
+                    triggerMode={triggerMode}
                     viewMode={viewMode}
                     onDropImport={(dataTransfer) => onDropImport(button.id, dataTransfer)}
                     onSelect={() => onSelectButton(button.id)}

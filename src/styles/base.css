@@ -67,14 +67,14 @@ label {
 
 .danger {
   background: var(--danger);
-  color: white;
+  color: var(--white);
   border-color: var(--danger);
 }
 
 .danger:hover {
-  background-color: #ef7777;
-  color: white;
-  border-color: #ef7777;
+  background-color: var(--danger-hover);
+  color: var(--white);
+  border-color: var(--danger-hover);
 }
 
 .iconOnlyButton {

@@ -10,6 +10,7 @@ type SortableDeckButtonProps = {
   button: DeckButton;
   selected: boolean;
   selectionMode?: boolean;
+  triggerMode?: "singleClick" | "doubleClick";
   viewMode?: "tile" | "list";
   onSelect: () => void;
   onDropImport: (dataTransfer: DataTransfer) => void | Promise<void>;
@@ -21,6 +22,7 @@ export function SortableDeckButton({
   button,
   selected,
   selectionMode = false,
+  triggerMode = "singleClick",
   viewMode = "tile",
   onSelect,
   onDropImport,
@@ -33,6 +35,20 @@ export function SortableDeckButton({
   async function handleLeftClick() {
     if (selectionMode) {
       onToggleSelection();
+      return;
+    }
+
+    onSelect();
+
+    if (triggerMode === "doubleClick") {
+      return;
+    }
+
+    await onTrigger();
+  }
+
+  async function handleDoubleClick() {
+    if (selectionMode || triggerMode !== "doubleClick") {
       return;
     }
 
@@ -83,6 +99,7 @@ export function SortableDeckButton({
       }}
       onClick={handleLeftClick}
       onContextMenu={handleRightClick}
+      onDoubleClick={handleDoubleClick}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}

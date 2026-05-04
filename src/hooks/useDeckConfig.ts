@@ -17,6 +17,13 @@ import { uid } from "@/utils/uid";
 
 const MAX_BUTTONS_PER_PROFILE = 20;
 const MAX_PROFILES = 15;
+const DEFAULT_SETTINGS = {
+  launchOnStartup: false,
+  startMinimizedToTray: false,
+  confirmBeforeDelete: true,
+  defaultDeckView: "tile",
+  buttonTriggerMode: "singleClick",
+} as const;
 
 export function useDeckConfig() {
   const [config, setConfig] = useState<DeckConfig | null>(null);
@@ -40,7 +47,19 @@ export function useDeckConfig() {
       try {
         setIsLoading(true);
         const loadedConfig = await loadDeckConfig();
-        setConfig(loadedConfig);
+        const normalizedTriggerMode =
+          loadedConfig.settings?.buttonTriggerMode === "doubleClick"
+            ? "doubleClick"
+            : "singleClick";
+
+        setConfig({
+          ...loadedConfig,
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...loadedConfig.settings,
+            buttonTriggerMode: normalizedTriggerMode,
+          },
+        });
       } catch (loadError) {
         logger.error("Failed to load deck config", loadError);
 
@@ -97,6 +116,17 @@ export function useDeckConfig() {
     setError(null);
   }
 
+  function updateSettings(updater: (settings: DeckConfig["settings"]) => DeckConfig["settings"]) {
+    if (!config) {
+      return;
+    }
+
+    persist({
+      ...config,
+      settings: updater(config.settings ?? DEFAULT_SETTINGS),
+    });
+  }
+
   function updateActiveProfile(updater: (profile: Profile) => Profile) {
     if (!config) return;
 
@@ -147,6 +177,23 @@ export function useDeckConfig() {
 
   function requestDeleteProfile() {
     if (!config || !activeProfile) return;
+
+    if (!config.settings.confirmBeforeDelete) {
+      const remainingProfiles = config.profiles.filter(
+        (profile) => profile.id !== activeProfile.id,
+      );
+
+      persist({
+        ...config,
+        activeProfileId: remainingProfiles[0]?.id ?? "",
+        profiles: remainingProfiles,
+      });
+
+      setSelectedButtonId(null);
+      setSelectedButtonIds([]);
+      setIsButtonSelectionMode(false);
+      return;
+    }
 
     setConfirmDelete({
       type: "profile",
@@ -254,6 +301,16 @@ export function useDeckConfig() {
     const button = activeProfile?.buttons.find((item) => item.id === id);
     if (!button) return;
 
+    if (!config?.settings.confirmBeforeDelete) {
+      updateActiveProfile((profile) => ({
+        ...profile,
+        buttons: profile.buttons.filter((currentButton) => currentButton.id !== id),
+      }));
+
+      setSelectedButtonId(null);
+      return;
+    }
+
     setConfirmDelete({
       type: "button",
       id,
@@ -263,6 +320,20 @@ export function useDeckConfig() {
 
   function requestDeleteButtons(ids: string[]) {
     if (!activeProfile || ids.length === 0) return;
+
+    if (!config?.settings.confirmBeforeDelete) {
+      const idsToDelete = new Set(ids);
+
+      updateActiveProfile((profile) => ({
+        ...profile,
+        buttons: profile.buttons.filter((button) => !idsToDelete.has(button.id)),
+      }));
+
+      setSelectedButtonId(null);
+      setSelectedButtonIds([]);
+      setIsButtonSelectionMode(false);
+      return;
+    }
 
     setConfirmDelete({
       type: "buttons",
@@ -401,6 +472,7 @@ export function useDeckConfig() {
     isLoading,
     isButtonSelectionMode,
     isProfileLimitReached: (config?.profiles.length ?? 0) >= MAX_PROFILES,
+    settings: config?.settings ?? DEFAULT_SETTINGS,
     sensors,
     selectedButtonIds,
     selectedButtons,
@@ -408,6 +480,7 @@ export function useDeckConfig() {
     setConfirmDelete,
     clearError,
     persist,
+    updateSettings,
     addProfile,
     editProfileName,
     requestDeleteProfile,
