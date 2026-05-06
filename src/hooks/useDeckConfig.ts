@@ -1,5 +1,6 @@
 import { DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useMemo, useState } from "react";
 import type {
   AppError,
@@ -25,6 +26,20 @@ const DEFAULT_SETTINGS = {
   buttonTriggerMode: "singleClick",
 } as const;
 
+function normalizeConfig(config: DeckConfig): DeckConfig {
+  const normalizedTriggerMode =
+    config.settings?.buttonTriggerMode === "doubleClick" ? "doubleClick" : "singleClick";
+
+  return {
+    ...config,
+    settings: {
+      ...DEFAULT_SETTINGS,
+      ...config.settings,
+      buttonTriggerMode: normalizedTriggerMode,
+    },
+  };
+}
+
 export function useDeckConfig() {
   const [config, setConfig] = useState<DeckConfig | null>(null);
   const [selectedButtonId, setSelectedButtonId] = useState<string | null>(null);
@@ -47,19 +62,7 @@ export function useDeckConfig() {
       try {
         setIsLoading(true);
         const loadedConfig = await loadDeckConfig();
-        const normalizedTriggerMode =
-          loadedConfig.settings?.buttonTriggerMode === "doubleClick"
-            ? "doubleClick"
-            : "singleClick";
-
-        setConfig({
-          ...loadedConfig,
-          settings: {
-            ...DEFAULT_SETTINGS,
-            ...loadedConfig.settings,
-            buttonTriggerMode: normalizedTriggerMode,
-          },
-        });
+        setConfig(normalizeConfig(loadedConfig));
       } catch (loadError) {
         logger.error("Failed to load deck config", loadError);
 
@@ -73,6 +76,38 @@ export function useDeckConfig() {
     }
 
     load();
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    listen<DeckConfig>("config-updated", (event) => {
+      const nextConfig = normalizeConfig(event.payload);
+
+      setConfig(nextConfig);
+      setSelectedButtonId((currentButtonId) => {
+        if (!currentButtonId) return currentButtonId;
+
+        const buttonStillExists = nextConfig.profiles.some((profile) =>
+          profile.buttons.some((button) => button.id === currentButtonId),
+        );
+
+        return buttonStillExists ? currentButtonId : null;
+      });
+      setSelectedButtonIds((currentButtonIds) => {
+        const availableIds = new Set(
+          nextConfig.profiles.flatMap((profile) => profile.buttons.map((button) => button.id)),
+        );
+
+        return currentButtonIds.filter((buttonId) => availableIds.has(buttonId));
+      });
+    }).then((unsubscribe) => {
+      unlisten = unsubscribe;
+    });
+
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   const activeProfile = useMemo(() => {

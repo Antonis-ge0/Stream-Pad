@@ -566,14 +566,19 @@ fn save_config(
     state: tauri::State<AppState>,
     config: DeckConfig,
 ) -> Result<(), String> {
+    persist_config(&app, &state, config)
+}
+
+fn persist_config(app: &AppHandle, state: &AppState, config: DeckConfig) -> Result<(), String> {
     validate_config(&config)?;
-    write_config_to_disk(&app, &config)?;
+    write_config_to_disk(app, &config)?;
 
     {
         let mut cached_config = state.config.lock().unwrap();
         *cached_config = config.clone();
     }
 
+    let _ = app.emit("config-updated", config.clone());
     broadcast_config(&state, &config);
 
     Ok(())
@@ -997,7 +1002,7 @@ async fn trigger_button(
     Ok(())
 }
 
-async fn websocket_server(state: AppState) {
+async fn websocket_server(app: AppHandle, state: AppState) {
     let listener = TcpListener::bind("0.0.0.0:37123")
         .await
         .expect("WebSocket server failed");
@@ -1008,6 +1013,7 @@ async fn websocket_server(state: AppState) {
         };
 
         let state = state.clone();
+        let app = app.clone();
 
         tokio::spawn(async move {
             let Ok(ws) = accept_async(stream).await else {
@@ -1063,6 +1069,36 @@ async fn websocket_server(state: AppState) {
                             });
 
                             let _ = tx.send(response.to_string());
+                        }
+
+                        if value["type"] == "saveConfig" {
+                            let Some(config_value) = value.get("config") else {
+                                let response = serde_json::json!({
+                                    "type": "error",
+                                    "message": "Missing config payload."
+                                });
+                                let _ = tx.send(response.to_string());
+                                continue;
+                            };
+
+                            match serde_json::from_value::<DeckConfig>(config_value.clone()) {
+                                Ok(config) => {
+                                    if let Err(message) = persist_config(&app, &state, config) {
+                                        let response = serde_json::json!({
+                                            "type": "error",
+                                            "message": message
+                                        });
+                                        let _ = tx.send(response.to_string());
+                                    }
+                                }
+                                Err(error) => {
+                                    let response = serde_json::json!({
+                                        "type": "error",
+                                        "message": error.to_string()
+                                    });
+                                    let _ = tx.send(response.to_string());
+                                }
+                            }
                         }
                     }
                 }
@@ -1184,7 +1220,7 @@ pub fn run() {
 
             app.manage(state.clone());
 
-            tauri::async_runtime::spawn(websocket_server(state));
+            tauri::async_runtime::spawn(websocket_server(app.handle().clone(), state));
             install_native_drop_handler(app.handle());
 
             if start_minimized_to_tray {

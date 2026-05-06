@@ -157,6 +157,14 @@ export function AppDrawer({
       return "No Updates available";
     }
 
+    if (lowerMessage.includes("404") || lowerMessage.includes("not found")) {
+      return "Updater metadata was not found. Check that the release has latest.json and that the GitHub release is publicly reachable.";
+    }
+
+    if (lowerMessage.includes("403") || lowerMessage.includes("forbidden")) {
+      return "The update server is not publicly accessible. Private GitHub releases cannot be checked from the app without a different update host.";
+    }
+
     return "Could not check for updates. Try again later.";
   }
 
