@@ -25,7 +25,7 @@ import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updat
 import { APP_CONFIG } from "@/config/appConfig";
 import type { DeckSettings } from "@/domain/deck";
 import type { Theme } from "@/hooks/useTheme";
-import titleBarIcon from "@/assets/titlebar-icon.png";
+import aboutIcon from "@/assets/about-icon.png";
 
 type DrawerSection = "menu" | "settings" | "help" | "feedback" | "updates" | "about";
 type UpdateStatus = "idle" | "checking" | "available" | "current" | "installing" | "error";
@@ -512,10 +512,10 @@ export function AppDrawer({
         {section === "feedback" && (
           <div className="drawerSection">
             <div className="aboutCard">
-              <h2>Share Feedback</h2>
-              <p>Send ideas, bug reports, or UI notes through a hosted feedback form.</p>
-              <p className="drawerHint">
-                Send ideas, bug reports, or UI notes straight to the hosted form.
+              <h2>General Feedback</h2>
+              <p>
+                How's your experience with Stream Deck so far? We'd love to hear your thoughts.
+                Send ideas, bug reports, or UI notes through the feedback form below.
               </p>
             </div>
 
@@ -595,7 +595,7 @@ export function AppDrawer({
         {section === "about" && (
           <div className="drawerSection">
             <div className="aboutCard aboutHeroCard">
-              <img className="aboutAppIcon" src={titleBarIcon} alt={APP_CONFIG.name} />
+              <img className="aboutAppIcon" src={aboutIcon} alt={APP_CONFIG.name} />
               <h2>{APP_CONFIG.name}</h2>
               <p className="aboutVersion">Version {APP_CONFIG.version}</p>
               <p className="aboutDescription">

@@ -19,8 +19,8 @@ import { uid } from "@/utils/uid";
 const MAX_BUTTONS_PER_PROFILE = 20;
 const MAX_PROFILES = 15;
 const DEFAULT_SETTINGS = {
-  launchOnStartup: false,
-  startMinimizedToTray: false,
+  launchOnStartup: true,
+  startMinimizedToTray: true,
   confirmBeforeDelete: true,
   defaultDeckView: "tile",
   buttonTriggerMode: "singleClick",
