@@ -4,22 +4,9 @@ import { Minus, Square, X } from "lucide-react";
 const appWindow = getCurrentWindow();
 
 export function CustomTitleBar() {
-  const startDrag = async (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    await appWindow.startDragging();
-  };
-
   return (
-    <header className="customTitleBar">
-      <div
-        className="titleBarDragArea"
-        data-tauri-drag-region
-        onMouseDown={startDrag}
-      >
-      </div>
+    <header className="customTitleBar" data-tauri-drag-region>
+      <div className="titleBarDragArea" data-tauri-drag-region />
 
       <div className="windowControls">
         <button

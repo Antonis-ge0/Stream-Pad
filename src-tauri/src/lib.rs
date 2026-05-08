@@ -725,7 +725,11 @@ fn file_icon_data_url(path: &Path) -> Option<String> {
             },
             Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES,
             UI::{
-                Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON},
+                Controls::{IImageList, ILD_TRANSPARENT},
+                Shell::{
+                    SHGetFileInfoW, SHGetImageList, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON,
+                    SHGFI_SYSICONINDEX, SHIL_EXTRALARGE, SHIL_JUMBO,
+                },
                 WindowsAndMessaging::{DestroyIcon, DrawIconEx, DI_NORMAL},
             },
         },
@@ -738,22 +742,48 @@ fn file_icon_data_url(path: &Path) -> Option<String> {
         .collect();
     let mut shell_info = SHFILEINFOW::default();
 
-    let result = unsafe {
+    let icon = unsafe {
+        let index_result = SHGetFileInfoW(
+            PCWSTR(wide_path.as_ptr()),
+            FILE_FLAGS_AND_ATTRIBUTES(0),
+            Some(&mut shell_info),
+            std::mem::size_of::<SHFILEINFOW>() as u32,
+            SHGFI_SYSICONINDEX,
+        );
+
+        if index_result != 0 {
+            SHGetImageList::<IImageList>(SHIL_JUMBO as i32)
+                .or_else(|_| SHGetImageList::<IImageList>(SHIL_EXTRALARGE as i32))
+                .ok()
+                .and_then(|image_list| {
+                    image_list
+                        .GetIcon(shell_info.iIcon, ILD_TRANSPARENT.0 as u32)
+                        .ok()
+                })
+        } else {
+            None
+        }
+    }
+    .or_else(|| unsafe {
         SHGetFileInfoW(
             PCWSTR(wide_path.as_ptr()),
             FILE_FLAGS_AND_ATTRIBUTES(0),
             Some(&mut shell_info),
             std::mem::size_of::<SHFILEINFOW>() as u32,
             SHGFI_ICON | SHGFI_LARGEICON,
-        )
-    };
+        );
 
-    if result == 0 || shell_info.hIcon.is_invalid() {
-        return None;
-    }
+        if shell_info.hIcon.is_invalid() {
+            None
+        } else {
+            Some(shell_info.hIcon)
+        }
+    });
 
-    let width = 48;
-    let height = 48;
+    let icon = icon.filter(|icon| !icon.is_invalid())?;
+
+    let width = 128;
+    let height = 128;
     let mut bitmap_info = BITMAPINFO::default();
 
     bitmap_info.bmiHeader.biSize = std::mem::size_of_val(&bitmap_info.bmiHeader) as u32;
@@ -780,29 +810,31 @@ fn file_icon_data_url(path: &Path) -> Option<String> {
         let bitmap_object = bitmap.into();
         let old_bitmap = SelectObject(memory_dc, bitmap_object);
 
-        DrawIconEx(
-            memory_dc,
-            0,
-            0,
-            shell_info.hIcon,
-            width,
-            height,
-            0,
-            None,
-            DI_NORMAL,
-        )
-        .ok()?;
+        let pixel_count = (width * height * 4) as usize;
+        let pixel_buffer = std::slice::from_raw_parts_mut(bits as *mut u8, pixel_count);
+
+        for pixel in pixel_buffer.chunks_exact_mut(4) {
+            pixel[0] = 255;
+            pixel[1] = 255;
+            pixel[2] = 255;
+            pixel[3] = 255;
+        }
+
+        let draw_result = DrawIconEx(memory_dc, 0, 0, icon, width, height, 0, None, DI_NORMAL);
 
         SelectObject(memory_dc, old_bitmap);
         let _ = DeleteDC(memory_dc);
         let _ = ReleaseDC(None, screen_dc);
-        let _ = DestroyIcon(shell_info.hIcon);
+        let _ = DestroyIcon(icon);
 
-        let pixel_count = (width * height * 4) as usize;
-        let pixels = std::slice::from_raw_parts(bits as *const u8, pixel_count).to_vec();
+        let pixels = pixel_buffer.to_vec();
         let _ = DeleteObject(bitmap_object);
 
-        Some(bmp_data_url(width, height, &pixels))
+        if draw_result.is_err() {
+            None
+        } else {
+            Some(bmp_data_url(width, height, &pixels))
+        }
     };
 
     data_url
