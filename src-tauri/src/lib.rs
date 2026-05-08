@@ -1178,8 +1178,13 @@ async fn trigger_button_from_state(
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
     }
+}
+
+fn launched_from_autostart() -> bool {
+    std::env::args().any(|argument| argument == "--from-autostart")
 }
 
 #[cfg(windows)]
@@ -1235,6 +1240,9 @@ fn install_native_drop_handler(_app: &AppHandle) {}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--from-autostart"]),
@@ -1243,7 +1251,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let initial_config = read_config_from_disk(app.handle())?;
-            let start_minimized_to_tray = initial_config.settings.start_minimized_to_tray;
+            let should_start_in_tray =
+                initial_config.settings.start_minimized_to_tray && launched_from_autostart();
 
             let state = AppState {
                 config: Arc::new(Mutex::new(initial_config)),
@@ -1255,7 +1264,7 @@ pub fn run() {
             tauri::async_runtime::spawn(websocket_server(app.handle().clone(), state));
             install_native_drop_handler(app.handle());
 
-            if start_minimized_to_tray {
+            if should_start_in_tray {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }
