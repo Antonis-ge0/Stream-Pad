@@ -50,17 +50,17 @@ jobs:
           includeUpdaterJson: true
 
       - name: Build visual installer bootstrapper
-        working-directory: src-tauri
-        run: cargo build --release --bin stream_deck_installer
+        working-directory: installer-bootstrapper
+        run: cargo build --release
 
       - name: Package visual installer bootstrapper
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
-          Copy-Item src-tauri/target/release/stream_deck_installer.exe "src-tauri/target/release/Stream.Deck_${version}_x64-installer.exe"
+          Copy-Item installer-bootstrapper/target/release/stream_deck_installer.exe "installer-bootstrapper/target/release/Stream.Deck_${version}_x64-installer.exe"
 
       - name: Upload visual installer bootstrapper
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: src-tauri/target/release/Stream.Deck_*_x64-installer.exe
+          files: installer-bootstrapper/target/release/Stream.Deck_*_x64-installer.exe

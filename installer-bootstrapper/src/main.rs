@@ -51,7 +51,7 @@ mod windows_installer {
     const WINDOW_WIDTH: i32 = 980;
     const WINDOW_HEIGHT: i32 = 640;
     const LOGO_SIZE: i32 = 160;
-    const LOGO_BITMAP: &[u8] = include_bytes!("../../installer/app-logo-160.bgra");
+    const LOGO_BITMAP: &[u8] = include_bytes!("../../src-tauri/installer/app-logo-160.bgra");
     const TIMER_ID: usize = 1;
     const TIMER_MS: u32 = 16;
     const RELEASE_JSON_URL: &str =
@@ -554,9 +554,8 @@ mod windows_installer {
 
         let metadata = fs::read_to_string(&metadata_path)
             .map_err(|error| format!("Could not read update metadata: {error}"))?;
-        let version = parse_json_string(&metadata, "version").unwrap_or_else(|| {
-            env!("CARGO_PKG_VERSION").to_string()
-        });
+        let version = parse_json_string(&metadata, "version")
+            .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
         let tag = format!("v{version}");
         let installer_name = format!("Stream.Deck_{version}_x64-setup.exe");
         let installer_url = format!("{RELEASE_DOWNLOAD_BASE}/download/{tag}/{installer_name}");
@@ -583,8 +582,7 @@ mod windows_installer {
                 path.file_name()
                     .and_then(|name| name.to_str())
                     .map(|name| {
-                        name.starts_with("Stream.Deck_")
-                            && name.ends_with("_x64-setup.exe")
+                        name.starts_with("Stream.Deck_") && name.ends_with("_x64-setup.exe")
                     })
                     .unwrap_or(false)
             })

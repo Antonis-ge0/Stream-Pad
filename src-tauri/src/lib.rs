@@ -894,10 +894,11 @@ fn describe_dropped_file(path: String) -> Result<ImportedButtonData, String> {
     if extension == "url" || extension == "website" {
         let url = read_url_shortcut(&path_buf)
             .ok_or_else(|| "Could not read URL from shortcut.".to_string())?;
+        let icon = file_icon_data_url(&path_buf).or_else(|| favicon_for_url(&url));
 
         return Ok(ImportedButtonData {
             label,
-            icon: favicon_for_url(&url),
+            icon,
             actions: vec![Action::OpenUrl { url }],
         });
     }
