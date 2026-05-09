@@ -11,7 +11,7 @@ use std::{
 };
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
@@ -1271,16 +1271,23 @@ pub fn run() {
                 }
             }
 
-            let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(
+                app,
+                "launch_stream_deck",
+                "Launch Stream Pad",
+                true,
+                None::<&str>,
+            )?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             TrayIconBuilder::new()
                 .menu(&tray_menu)
-                .tooltip("Stream Deck")
+                .show_menu_on_left_click(false)
+                .tooltip("Stream Pad")
                 .icon(app.default_window_icon().unwrap().clone())
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    "show" => {
+                    "launch_stream_deck" => {
                         show_main_window(app);
                     }
                     "quit" => {
@@ -1289,9 +1296,8 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
+                    if let TrayIconEvent::DoubleClick {
                         button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
                         ..
                     } = event
                     {

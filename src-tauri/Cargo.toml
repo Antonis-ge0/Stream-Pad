@@ -1,8 +1,9 @@
 [package]
-name = "StreamDeck"
-version = "0.1.8"
-authors = ["you"]
+name = "StreamPad"
+version = "0.1.9"
+authors = ["Antonis Georgosopoulos"]
 edition = "2021"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,7 +11,7 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "streamdeck_clone_lib"
+name = "stream_pad_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

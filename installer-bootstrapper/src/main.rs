@@ -2,7 +2,7 @@
 
 #[cfg(not(target_os = "windows"))]
 fn main() {
-    eprintln!("The Stream Deck installer bootstrapper only runs on Windows.");
+    eprintln!("The Stream Pad installer bootstrapper only runs on Windows.");
 }
 
 #[cfg(target_os = "windows")]
@@ -93,7 +93,7 @@ mod windows_installer {
         fn snapshot(&self) -> InstallerView {
             self.view.lock().map(|view| view.clone()).unwrap_or_else(|_| InstallerView {
                 status: "Installing".to_string(),
-                detail: "Please wait while we install Stream Deck.".to_string(),
+                detail: "Please wait while we install Stream Pad.".to_string(),
                 failed: false,
             })
         }
@@ -103,7 +103,7 @@ mod windows_installer {
         let state = Arc::new(AppState {
             view: Mutex::new(InstallerView {
                 status: "Preparing".to_string(),
-                detail: "Please wait while we install Stream Deck.".to_string(),
+                detail: "Please wait while we install Stream Pad.".to_string(),
                 failed: false,
             }),
         });
@@ -122,7 +122,7 @@ mod windows_installer {
     unsafe fn create_window() -> Option<HWND> {
         let module = GetModuleHandleW(None).ok()?;
         let instance = HINSTANCE(module.0);
-        let class_name = w!("StreamDeckVisualInstaller");
+        let class_name = w!("StreamPadVisualInstaller");
         let cursor = LoadCursorW(None, IDC_ARROW).ok();
 
         let window_class = WNDCLASSW {
@@ -154,7 +154,7 @@ mod windows_installer {
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE(0),
             class_name,
-            w!("Stream Deck Installer"),
+            w!("Stream Pad Installer"),
             WS_POPUP | WS_VISIBLE,
             x,
             y,
@@ -301,7 +301,7 @@ mod windows_installer {
         );
         draw_centered_text(
             hdc,
-            "STREAM DECK",
+            "STREAM PAD",
             RECT {
                 left: 0,
                 top: 320,
@@ -348,7 +348,7 @@ mod windows_installer {
     unsafe fn draw_status(hdc: HDC) {
         let state = APP_STATE.get().map(|state| state.snapshot()).unwrap_or(InstallerView {
             status: "Installing".to_string(),
-            detail: "Please wait while we install Stream Deck.".to_string(),
+            detail: "Please wait while we install Stream Pad.".to_string(),
             failed: false,
         });
 
@@ -516,16 +516,16 @@ mod windows_installer {
     fn start_install_worker(hwnd: HWND, state: Arc<AppState>) {
         let hwnd_value = hwnd.0 as isize;
         thread::spawn(move || {
-            state.set_status("Downloading", "Getting the latest Stream Deck installer.");
+            state.set_status("Downloading", "Getting the latest Stream Pad installer.");
 
             let result = resolve_installer(&state).and_then(|installer| {
-                state.set_status("Installing", "Please wait while we install Stream Deck.");
+                state.set_status("Installing", "Please wait while we install Stream Pad.");
                 run_inner_installer(&installer)
             });
 
             match result {
                 Ok(()) => {
-                    state.set_status("Ready", "Stream Deck has been installed.");
+                    state.set_status("Ready", "Stream Pad has been installed.");
                     thread::sleep(Duration::from_millis(1500));
                     unsafe {
                         let hwnd = HWND(hwnd_value as *mut _);
@@ -544,29 +544,29 @@ mod windows_installer {
             return Ok(local_installer);
         }
 
-        let temp_dir = std::env::temp_dir().join("stream-deck-installer");
+        let temp_dir = std::env::temp_dir().join("stream-pad-installer");
         fs::create_dir_all(&temp_dir)
             .map_err(|error| format!("Could not prepare installer cache: {error}"))?;
 
         let metadata_path = temp_dir.join("latest.json");
         download_file(RELEASE_JSON_URL, &metadata_path)
-            .map_err(|_| "Could not reach the Stream Deck release endpoint.".to_string())?;
+            .map_err(|_| "Could not reach the Stream Pad release endpoint.".to_string())?;
 
         let metadata = fs::read_to_string(&metadata_path)
             .map_err(|error| format!("Could not read update metadata: {error}"))?;
         let version = parse_json_string(&metadata, "version")
             .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
         let tag = format!("v{version}");
-        let installer_name = format!("Stream.Deck_{version}_x64-setup.exe");
+        let installer_name = format!("Stream.Pad_{version}_x64-setup.exe");
         let installer_url = format!("{RELEASE_DOWNLOAD_BASE}/download/{tag}/{installer_name}");
         let installer_path = temp_dir.join(installer_name);
 
         state.set_status(
             "Downloading",
-            format!("Downloading Stream Deck {version}."),
+            format!("Downloading Stream Pad {version}."),
         );
         download_file(&installer_url, &installer_path)
-            .map_err(|_| "Could not download the Stream Deck setup file.".to_string())?;
+            .map_err(|_| "Could not download the Stream Pad setup file.".to_string())?;
 
         Ok(installer_path)
     }
@@ -582,7 +582,7 @@ mod windows_installer {
                 path.file_name()
                     .and_then(|name| name.to_str())
                     .map(|name| {
-                        name.starts_with("Stream.Deck_") && name.ends_with("_x64-setup.exe")
+                        name.starts_with("Stream.Pad_") && name.ends_with("_x64-setup.exe")
                     })
                     .unwrap_or(false)
             })
@@ -592,13 +592,13 @@ mod windows_installer {
         let status = Command::new(installer)
             .args(["/S", "/R"])
             .status()
-            .map_err(|error| format!("Could not start the Stream Deck setup: {error}"))?;
+            .map_err(|error| format!("Could not start the Stream Pad setup: {error}"))?;
 
         if status.success() {
             Ok(())
         } else {
             Err(format!(
-                "The Stream Deck setup exited with code {}.",
+                "The Stream Pad setup exited with code {}.",
                 status
                     .code()
                     .map(|code| code.to_string())

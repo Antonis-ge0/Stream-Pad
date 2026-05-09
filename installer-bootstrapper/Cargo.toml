@@ -1,7 +1,8 @@
 [package]
-name = "stream_deck_installer"
-version = "0.1.8"
+name = "stream_pad_installer"
+version = "0.1.9"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 windows = { version = "0.61.3", features = [

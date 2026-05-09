@@ -514,7 +514,7 @@ export function AppDrawer({
             <div className="aboutCard">
               <h2>General Feedback</h2>
               <p>
-                How's your experience with Stream Deck so far? We'd love to hear your thoughts.
+                How's your experience with Stream Pad so far? We'd love to hear your thoughts.
                 Send ideas, bug reports, or UI notes through the feedback form below.
               </p>
             </div>

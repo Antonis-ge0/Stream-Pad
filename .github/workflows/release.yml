@@ -1,4 +1,4 @@
-name: Release Stream Deck
+name: Release Stream Pad
 
 on:
   push:
@@ -42,8 +42,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Stream Deck ${{ github.ref_name }}"
-          releaseBody: "New Stream Deck release."
+          releaseName: "Stream Pad ${{ github.ref_name }}"
+          releaseBody: "New Stream Pad release."
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
@@ -57,10 +57,10 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
-          Copy-Item installer-bootstrapper/target/release/stream_deck_installer.exe "installer-bootstrapper/target/release/Stream.Deck_${version}_x64-installer.exe"
+          Copy-Item installer-bootstrapper/target/release/stream_pad_installer.exe "installer-bootstrapper/target/release/Stream.Pad_${version}_x64-installer.exe"
 
       - name: Upload visual installer bootstrapper
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: installer-bootstrapper/target/release/Stream.Deck_*_x64-installer.exe
+          files: installer-bootstrapper/target/release/Stream.Pad_*_x64-installer.exe

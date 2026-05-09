@@ -159,7 +159,7 @@ export function DeckPanel({
             <Settings size={48} />
           </div>
           <h3>No profiles yet</h3>
-          <p>Create a profile to start building your Stream Deck.</p>
+          <p>Create a profile to start building your Stream Pad.</p>
           {onCreateProfile && (
             <button className="primary" onClick={onCreateProfile} type="button">
               <Plus size={18} /> Create Profile

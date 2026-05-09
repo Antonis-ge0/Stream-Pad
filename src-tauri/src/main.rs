@@ -1,4 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 fn main() {
-    streamdeck_clone_lib::run();
+    stream_pad_lib::run();
 }

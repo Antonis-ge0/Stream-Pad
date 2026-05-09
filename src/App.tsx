@@ -319,10 +319,10 @@ export default function App() {
           <img
             className="titleBarIcon"
             src={titleBarIcon}
-            alt="Stream Deck"
+            alt="Stream Pad"
             data-tauri-drag-region
           />
-          <h1>Stream Deck</h1>
+          <h1>Stream Pad</h1>
         </div>
 
         <div className="profileControls">

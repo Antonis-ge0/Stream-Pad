@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Stream Deck",
-  "version": "0.1.8",
-  "identifier": "com.pc.streamdeck-clone",
+  "productName": "Stream Pad",
+  "version": "0.1.9",
+  "identifier": "com.antonis.streampad",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Stream Deck",
+        "title": "Stream Pad",
         "width": 1055,
         "height": 885,
         "minWidth": 1050,
@@ -47,7 +47,7 @@
         "headerImage": "installer/nsis-header.bmp",
         "uninstallerHeaderImage": "installer/nsis-uninstaller-header.bmp",
         "sidebarImage": "installer/nsis-sidebar.bmp",
-        "startMenuFolder": "Stream Deck"
+        "startMenuFolder": "Stream Pad"
       },
       "wix": {
         "bannerPath": "installer/wix-banner.bmp",
