@@ -62,7 +62,7 @@
       },
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwN0U4RTRCREE4OTcwNgpSV1FHbDZpOTVPZ0hCNEVlNk5QZkpBY3ZzbVhQVXJtTUlnQUIxVVdXWDNFVFZpbzRPSXJ6SkpWdQo=",
       "endpoints": [
-        "https://github.com/Antonis-ge0/Stream-Deck/releases/latest/download/latest.json"
+        "https://github.com/Antonis-ge0/Stream-Pad/releases/latest/download/latest.json"
       ]
     }
   }

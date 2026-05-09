@@ -55,8 +55,8 @@ mod windows_installer {
     const TIMER_ID: usize = 1;
     const TIMER_MS: u32 = 16;
     const RELEASE_JSON_URL: &str =
-        "https://github.com/Antonis-ge0/Stream-Deck/releases/latest/download/latest.json";
-    const RELEASE_DOWNLOAD_BASE: &str = "https://github.com/Antonis-ge0/Stream-Deck/releases";
+        "https://github.com/Antonis-ge0/Stream-Pad/releases/latest/download/latest.json";
+    const RELEASE_DOWNLOAD_BASE: &str = "https://github.com/Antonis-ge0/Stream-Pad/releases";
 
     static APP_STATE: OnceLock<Arc<AppState>> = OnceLock::new();
     static STARTED_AT: OnceLock<Instant> = OnceLock::new();
