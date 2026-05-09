@@ -23,15 +23,12 @@ It is built with Tauri, React, and Rust.
 Go to the latest GitHub Release and download one of these Windows files:
 
 - `Stream.Pad_<version>_x64-installer.exe`
-- `Stream.Pad_<version>_x64-setup.exe`
 
-Use `Stream.Pad_<version>_x64-installer.exe` if you want the branded installer
-window. It downloads or launches the real setup for you.
+Use `Stream.Pad_<version>_x64-installer.exe` for the normal installation. It
+shows the branded installer window and installs the latest version.
 
-Use `Stream.Pad_<version>_x64-setup.exe` if you want the direct installer. This
-is also the file used by the updater system.
-
-You do not need the `.sig` files manually. They are used by the app updater.
+The release also includes `latest.json` and `Stream.Pad_<version>_x64-setup.exe`
+for the built-in updater. Most users do not need to download those manually.
 
 ## How To Use
 
@@ -99,6 +96,8 @@ cargo build --release
 Stream Pad is released under the MIT License. See `LICENSE`.
 
 Third-party dependency information is listed in `THIRD_PARTY_NOTICES.md`.
+
+Privacy notes are listed in `PRIVACY.md`.
 
 Stream Pad is an independent project and is not affiliated with, endorsed by,
 or sponsored by Elgato, CORSAIR, or any other stream controller product maker.

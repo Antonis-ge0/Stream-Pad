@@ -64,3 +64,27 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: installer-bootstrapper/target/release/Stream.Pad_*_x64-installer.exe
+
+      - name: Remove non-user-facing release assets
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}"
+          $hiddenAssets = @(
+            "Stream.Pad_${version}_x64-setup.exe.sig",
+            "Stream.Pad_${version}_x64_en-US.msi",
+            "Stream.Pad_${version}_x64_en-US.msi.sig"
+          )
+
+          foreach ($asset in $release.assets) {
+            if ($hiddenAssets -contains $asset.name) {
+              Invoke-RestMethod -Method Delete -Headers $headers -Uri $asset.url
+            }
+          }

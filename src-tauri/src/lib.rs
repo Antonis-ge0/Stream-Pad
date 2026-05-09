@@ -10,9 +10,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tauri::{
-    menu::{Menu, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WindowEvent,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
 use tokio::net::TcpListener;
@@ -126,6 +125,10 @@ struct AppState {
     config: Arc<Mutex<DeckConfig>>,
     ws_clients: Arc<Mutex<Vec<tokio::sync::mpsc::UnboundedSender<String>>>>,
 }
+
+const TRAY_MENU_LABEL: &str = "tray-menu";
+const TRAY_MENU_WIDTH: i32 = 220;
+const TRAY_MENU_HEIGHT: i32 = 96;
 
 #[cfg(windows)]
 mod native_drop {
@@ -1184,6 +1187,41 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+fn hide_tray_menu(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(TRAY_MENU_LABEL) {
+        let _ = window.hide();
+    }
+}
+
+fn show_tray_menu(app: &AppHandle, x: f64, y: f64) {
+    let Some(window) = app.get_webview_window(TRAY_MENU_LABEL) else {
+        return;
+    };
+
+    let x = (x.round() as i32 - TRAY_MENU_WIDTH + 8).max(8);
+    let y = (y.round() as i32 - TRAY_MENU_HEIGHT - 8).max(8);
+
+    let _ = window.set_position(PhysicalPosition::new(x, y));
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[tauri::command]
+fn launch_stream_pad_from_tray(app: AppHandle) {
+    hide_tray_menu(&app);
+    show_main_window(&app);
+}
+
+#[tauri::command]
+fn quit_stream_pad_from_tray(app: AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
+fn hide_stream_pad_tray_menu(app: AppHandle) {
+    hide_tray_menu(&app);
+}
+
 fn launched_from_autostart() -> bool {
     std::env::args().any(|argument| argument == "--from-autostart")
 }
@@ -1271,39 +1309,45 @@ pub fn run() {
                 }
             }
 
-            let show_item = MenuItem::with_id(
+            WebviewWindowBuilder::new(
                 app,
-                "launch_stream_deck",
-                "Launch Stream Pad",
-                true,
-                None::<&str>,
-            )?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+                TRAY_MENU_LABEL,
+                WebviewUrl::App("index.html?trayMenu=1".into()),
+            )
+            .title("Stream Pad")
+            .inner_size(TRAY_MENU_WIDTH as f64, TRAY_MENU_HEIGHT as f64)
+            .resizable(false)
+            .decorations(false)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .focused(false)
+            .visible(false)
+            .build()?;
 
             TrayIconBuilder::new()
-                .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .tooltip("Stream Pad")
                 .icon(app.default_window_icon().unwrap().clone())
-                .on_menu_event(|app, event| match event.id().as_ref() {
-                    "launch_stream_deck" => {
-                        show_main_window(app);
-                    }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
-                })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::DoubleClick {
-                        button: MouseButton::Left,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
+                    let app = tray.app_handle();
 
-                        show_main_window(app);
+                    match event {
+                        TrayIconEvent::DoubleClick {
+                            button: MouseButton::Left,
+                            ..
+                        } => {
+                            hide_tray_menu(app);
+                            show_main_window(app);
+                        }
+                        TrayIconEvent::Click {
+                            button: MouseButton::Right,
+                            button_state: MouseButtonState::Up,
+                            position,
+                            ..
+                        } => {
+                            show_tray_menu(app, position.x, position.y);
+                        }
+                        _ => {}
                     }
                 })
                 .build(app)?;
@@ -1311,6 +1355,21 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == TRAY_MENU_LABEL {
+                match event {
+                    WindowEvent::Focused(false) => {
+                        let _ = window.hide();
+                    }
+                    WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                    _ => {}
+                }
+
+                return;
+            }
+
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
 
@@ -1319,9 +1378,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             describe_dropped_file,
+            hide_stream_pad_tray_menu,
+            launch_stream_pad_from_tray,
             load_config,
             open_default_apps_settings,
             open_external_url,
+            quit_stream_pad_from_tray,
             save_config,
             trigger_button
         ])
