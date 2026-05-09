@@ -6,6 +6,12 @@ launch them from a clean grid or list view.
 
 It is built with Tauri, React, and Rust.
 
+## Project Documents
+
+- [MIT License](LICENSE)
+- [Privacy Policy](PRIVACY.md)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
+
 ## What It Does
 
 - Create up to 15 profiles.

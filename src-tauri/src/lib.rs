@@ -127,8 +127,8 @@ struct AppState {
 }
 
 const TRAY_MENU_LABEL: &str = "tray-menu";
-const TRAY_MENU_WIDTH: i32 = 220;
-const TRAY_MENU_HEIGHT: i32 = 96;
+const TRAY_MENU_WIDTH: i32 = 188;
+const TRAY_MENU_HEIGHT: i32 = 82;
 
 #[cfg(windows)]
 mod native_drop {
@@ -1181,6 +1181,10 @@ async fn trigger_button_from_state(
 
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        if let Some(icon) = app.default_window_icon() {
+            let _ = window.set_icon(icon.clone());
+        }
+
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
@@ -1198,8 +1202,22 @@ fn show_tray_menu(app: &AppHandle, x: f64, y: f64) {
         return;
     };
 
-    let x = (x.round() as i32 - TRAY_MENU_WIDTH + 8).max(8);
-    let y = (y.round() as i32 - TRAY_MENU_HEIGHT - 8).max(8);
+    let mut x = x.round() as i32 + 10;
+    let mut y = y.round() as i32 - TRAY_MENU_HEIGHT - 8;
+
+    if let Ok(Some(monitor)) = app.monitor_from_point(x as f64, y as f64) {
+        let work_area = monitor.work_area();
+        let left = work_area.position.x + 8;
+        let top = work_area.position.y + 8;
+        let right = work_area.position.x + work_area.size.width as i32 - TRAY_MENU_WIDTH - 8;
+        let bottom = work_area.position.y + work_area.size.height as i32 - TRAY_MENU_HEIGHT - 8;
+
+        x = x.clamp(left, right.max(left));
+        y = y.clamp(top, bottom.max(top));
+    } else {
+        x = x.max(8);
+        y = y.max(8);
+    }
 
     let _ = window.set_position(PhysicalPosition::new(x, y));
     let _ = window.show();
@@ -1302,6 +1320,13 @@ pub fn run() {
 
             tauri::async_runtime::spawn(websocket_server(app.handle().clone(), state));
             install_native_drop_handler(app.handle());
+
+            if let (Some(window), Some(icon)) = (
+                app.get_webview_window("main"),
+                app.default_window_icon().cloned(),
+            ) {
+                let _ = window.set_icon(icon);
+            }
 
             if should_start_in_tray {
                 if let Some(window) = app.get_webview_window("main") {
