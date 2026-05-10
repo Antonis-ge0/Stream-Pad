@@ -48,7 +48,7 @@
     FileWrite $1 ":done$\r$\n"
     FileWrite $1 "del $\"%~f0$\" >nul 2>nul$\r$\n"
     FileClose $1
-    Exec "$\"$SYSDIR\cmd.exe$\" /D /C $\"$0$\""
+    ExecShell "open" "$SYSDIR\cmd.exe" "/Q /D /C $\"$0$\"" SW_HIDE
 
     DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"

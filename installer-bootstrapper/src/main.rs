@@ -311,9 +311,6 @@ mod windows_installer {
                     .unwrap_or_else(default_uninstaller_path);
                 let passthrough_args = args.collect::<Vec<_>>();
                 let exit_code = run_silent_uninstaller_as_code(&uninstall_path, &passthrough_args);
-                if exit_code == 0 && !is_update_uninstall(&passthrough_args) {
-                    schedule_install_dir_cleanup(&uninstall_path);
-                }
                 schedule_temp_uninstaller_cleanup();
                 std::process::exit(exit_code);
             }
@@ -382,59 +379,6 @@ mod windows_installer {
             .args(["/C", &cleanup_command])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn();
-    }
-
-    fn schedule_install_dir_cleanup(uninstall_path: &Path) {
-        let Some(install_dir) = uninstall_path.parent() else {
-            return;
-        };
-
-        if !is_safe_install_dir_cleanup_target(install_dir) {
-            return;
-        }
-
-        let cleanup_script = env::temp_dir().join("stream-pad-install-folder-cleanup.cmd");
-        let target = install_dir.display().to_string().replace('"', "");
-        let script = format!(
-            "@echo off\r\n\
-set \"TARGET={target}\"\r\n\
-for /L %%I in (1,1,45) do (\r\n\
-  attrib -R -S -H \"%TARGET%\\*\" /S /D >nul 2>nul\r\n\
-  rmdir /S /Q \"%TARGET%\" >nul 2>nul\r\n\
-  if not exist \"%TARGET%\" goto :done\r\n\
-  ping -n 2 127.0.0.1 >nul\r\n\
-)\r\n\
-:done\r\n\
-del \"%~f0\" >nul 2>nul\r\n"
-        );
-
-        if fs::write(&cleanup_script, script).is_err() {
-            return;
-        }
-
-        let params = OsString::from(format!("/D /C \"{}\"", cleanup_script.display()));
-        let file = to_wide("cmd.exe");
-        let params = to_wide_os(params.as_os_str());
-        let verb = to_wide("runas");
-
-        let mut execute_info = SHELLEXECUTEINFOW {
-            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-            lpVerb: PCWSTR(verb.as_ptr()),
-            lpFile: PCWSTR(file.as_ptr()),
-            lpParameters: PCWSTR(params.as_ptr()),
-            nShow: SW_HIDE.0,
-            ..Default::default()
-        };
-
-        unsafe {
-            let _ = ShellExecuteExW(&mut execute_info);
-        }
-    }
-
-    fn is_safe_install_dir_cleanup_target(path: &Path) -> bool {
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.eq_ignore_ascii_case("Stream Pad"))
     }
 
     unsafe fn create_window(mode: AppMode) -> Option<HWND> {
@@ -1285,7 +1229,6 @@ del \"%~f0\" >nul 2>nul\r\n"
             .map_err(|error| format!("Could not start the Stream Pad uninstaller: {error}"))?;
 
         if exit_code == 0 {
-            schedule_install_dir_cleanup(&uninstall_path);
             Ok(())
         } else {
             Err(format!(
@@ -1408,11 +1351,6 @@ del \"%~f0\" >nul 2>nul\r\n"
                 || value.eq_ignore_ascii_case("/S")
                 || value.starts_with("_?=")
         })
-    }
-
-    fn is_update_uninstall(args: &[OsString]) -> bool {
-        args.iter()
-            .any(|arg| arg.to_string_lossy().eq_ignore_ascii_case("/UPDATE"))
     }
 
     fn resolve_installer(state: &AppState) -> Result<PathBuf, String> {
