@@ -25,9 +25,10 @@ mod windows_installer {
         Win32::{
             Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
             Graphics::Gdi::{
-                BeginPaint, CreateFontW, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW,
-                Ellipse, EndPaint, FillRect, InvalidateRect, LineTo, MoveToEx, Rectangle, RoundRect,
-                SelectObject, SetBkMode, SetTextColor, StretchDIBits, BITMAPINFO,
+                Arc, BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW,
+                CreatePen, CreateSolidBrush, DeleteDC, DeleteObject, DrawTextW, Ellipse, EndPaint,
+                InvalidateRect, LineTo, MoveToEx, RoundRect, SelectObject, SetBkMode,
+                SetTextColor, StretchDIBits, BITMAPINFO,
                 BITMAPINFOHEADER, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
                 DEFAULT_PITCH, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
                 FF_DONTCARE, FW_BOLD, FW_NORMAL, HDC, OUT_DEFAULT_PRECIS, PAINTSTRUCT, PS_SOLID,
@@ -42,8 +43,8 @@ mod windows_installer {
                     GetSystemMetrics, LoadCursorW, PostMessageW, PostQuitMessage, RegisterClassW,
                     SendMessageW, SetTimer, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
                     CW_USEDEFAULT, HTCAPTION, IDC_ARROW, MSG, SM_CXSCREEN, SM_CYSCREEN, SW_SHOW,
-                    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_LBUTTONDOWN, WM_NCLBUTTONDOWN,
-                    WM_PAINT, WM_TIMER, WNDCLASSW, WS_POPUP, WS_VISIBLE,
+                    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_LBUTTONDOWN,
+                    WM_NCLBUTTONDOWN, WM_PAINT, WM_TIMER, WNDCLASSW, WS_POPUP, WS_VISIBLE,
                 },
             },
         },
@@ -366,6 +367,7 @@ mod windows_installer {
                 paint(hwnd);
                 LRESULT(0)
             }
+            WM_ERASEBKGND => LRESULT(1),
             WM_TIMER => {
                 let _ = InvalidateRect(Some(hwnd), None, false);
                 LRESULT(0)
@@ -405,10 +407,40 @@ mod windows_installer {
         let mut paint = PAINTSTRUCT::default();
         let hdc = BeginPaint(hwnd, &mut paint);
 
-        draw_background(hdc);
-        draw_close_button(hdc);
-        draw_brand(hdc);
-        draw_status(hdc);
+        let buffer_dc = CreateCompatibleDC(Some(hdc));
+        let buffer_bitmap = CreateCompatibleBitmap(hdc, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        if !buffer_dc.is_invalid() && !buffer_bitmap.is_invalid() {
+            let old_bitmap = SelectObject(buffer_dc, buffer_bitmap.into());
+            draw_background(buffer_dc);
+            draw_close_button(buffer_dc);
+            draw_brand(buffer_dc);
+            draw_status(buffer_dc);
+            let _ = BitBlt(
+                hdc,
+                0,
+                0,
+                WINDOW_WIDTH,
+                WINDOW_HEIGHT,
+                Some(buffer_dc),
+                0,
+                0,
+                SRCCOPY,
+            );
+            SelectObject(buffer_dc, old_bitmap);
+        } else {
+            draw_background(hdc);
+            draw_close_button(hdc);
+            draw_brand(hdc);
+            draw_status(hdc);
+        }
+
+        if !buffer_bitmap.is_invalid() {
+            let _ = DeleteObject(buffer_bitmap.into());
+        }
+        if !buffer_dc.is_invalid() {
+            let _ = DeleteDC(buffer_dc);
+        }
 
         let _ = EndPaint(hwnd, &paint);
     }
@@ -660,7 +692,7 @@ mod windows_installer {
             total: None,
             bytes_per_second: 0.0,
         });
-        draw_progress_bar(hdc, 310, 504, 360, 8, progress_fraction(&download));
+        draw_progress_bar(hdc, 290, 504, 400, 10, progress_fraction(&download));
 
         let status_font = CreateFontW(
             12,
@@ -832,28 +864,46 @@ mod windows_installer {
     }
 
     unsafe fn draw_progress_bar(hdc: HDC, x: i32, y: i32, width: i32, height: i32, progress: f64) {
-        fill_rect(hdc, x, y, width, height, rgb(255, 255, 255));
-        let pen = CreatePen(PS_SOLID, 1, rgb(224, 228, 234));
-        let old_pen = SelectObject(hdc, pen.into());
-        let _ = Rectangle(hdc, x, y, x + width, y + height);
-        SelectObject(hdc, old_pen);
-        let _ = DeleteObject(pen.into());
+        draw_pill(hdc, x, y, width, height, rgb(248, 248, 247), rgb(226, 226, 224));
 
-        let fill_width = ((width as f64 * progress.clamp(0.0, 1.0)).round() as i32).max(0);
+        let fill_width = ((width as f64 * progress.clamp(0.0, 1.0)).round() as i32)
+            .clamp(0, width);
         if fill_width > 0 {
-            fill_rect(hdc, x, y, fill_width, height, rgb(10, 14, 18));
+            if fill_width <= height {
+                let brush = CreateSolidBrush(rgb(10, 14, 18));
+                let pen = CreatePen(PS_SOLID, 1, rgb(10, 14, 18));
+                let old_brush = SelectObject(hdc, brush.into());
+                let old_pen = SelectObject(hdc, pen.into());
+                let _ = Ellipse(hdc, x, y, x + fill_width.max(2), y + height);
+                SelectObject(hdc, old_pen);
+                SelectObject(hdc, old_brush);
+                let _ = DeleteObject(pen.into());
+                let _ = DeleteObject(brush.into());
+            } else {
+                draw_pill(hdc, x, y, fill_width, height, rgb(10, 14, 18), rgb(10, 14, 18));
+            }
         }
     }
 
-    unsafe fn fill_rect(hdc: HDC, x: i32, y: i32, width: i32, height: i32, color: COLORREF) {
-        let brush = CreateSolidBrush(color);
-        let rect = RECT {
-            left: x,
-            top: y,
-            right: x + width,
-            bottom: y + height,
-        };
-        FillRect(hdc, &rect, brush);
+    unsafe fn draw_pill(
+        hdc: HDC,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        fill: COLORREF,
+        stroke: COLORREF,
+    ) {
+        let brush = CreateSolidBrush(fill);
+        let pen = CreatePen(PS_SOLID, 1, stroke);
+        let old_brush = SelectObject(hdc, brush.into());
+        let old_pen = SelectObject(hdc, pen.into());
+
+        let _ = RoundRect(hdc, x, y, x + width, y + height, height, height);
+
+        SelectObject(hdc, old_pen);
+        SelectObject(hdc, old_brush);
+        let _ = DeleteObject(pen.into());
         let _ = DeleteObject(brush.into());
     }
 
@@ -905,32 +955,66 @@ mod windows_installer {
             .get()
             .map(|start| start.elapsed().as_millis() as f32 / 1000.0)
             .unwrap_or_default();
-        let rotation = elapsed * 6.2;
+        let rotation = elapsed * 4.6;
+        let start = rotation;
+        let end = rotation + std::f32::consts::TAU * 0.78;
+        let stroke = 4;
+        let box_radius = radius + stroke / 2;
+        let white_brush = CreateSolidBrush(rgb(255, 255, 255));
+        let track_pen = CreatePen(PS_SOLID, stroke, rgb(205, 207, 211));
+        let old_brush = SelectObject(hdc, white_brush.into());
+        let old_pen = SelectObject(hdc, track_pen.into());
+        let _ = Ellipse(
+            hdc,
+            center_x - box_radius,
+            center_y - box_radius,
+            center_x + box_radius,
+            center_y + box_radius,
+        );
+        SelectObject(hdc, old_pen);
+        SelectObject(hdc, old_brush);
+        let _ = DeleteObject(track_pen.into());
+        let _ = DeleteObject(white_brush.into());
 
-        for index in 0..12 {
-            let angle = rotation + index as f32 * std::f32::consts::TAU / 12.0;
-            let alpha = 70 + index * 13;
-            let color = 22 + (alpha.min(150) as u8 / 2);
-            let x = center_x as f32 + angle.cos() * radius as f32;
-            let y = center_y as f32 + angle.sin() * radius as f32;
-            let brush = CreateSolidBrush(rgb(color, color, color));
-            let old_brush = SelectObject(hdc, brush.into());
-            let pen = CreatePen(PS_SOLID, 1, rgb(color, color, color));
-            let old_pen = SelectObject(hdc, pen.into());
+        let arc_pen = CreatePen(PS_SOLID, stroke, rgb(10, 14, 18));
+        let old_pen = SelectObject(hdc, arc_pen.into());
+        let (start_x, start_y) = arc_point(center_x, center_y, box_radius, start);
+        let (end_x, end_y) = arc_point(center_x, center_y, box_radius, end);
+        let _ = Arc(
+            hdc,
+            center_x - box_radius,
+            center_y - box_radius,
+            center_x + box_radius,
+            center_y + box_radius,
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+        );
+        SelectObject(hdc, old_pen);
+        let _ = DeleteObject(arc_pen.into());
 
-            let _ = Ellipse(
-                hdc,
-                x.round() as i32 - 3,
-                y.round() as i32 - 3,
-                x.round() as i32 + 3,
-                y.round() as i32 + 3,
-            );
+        draw_spinner_cap(hdc, start_x, start_y, stroke / 2, rgb(10, 14, 18));
+        draw_spinner_cap(hdc, end_x, end_y, stroke / 2, rgb(10, 14, 18));
+    }
 
-            SelectObject(hdc, old_pen);
-            SelectObject(hdc, old_brush);
-            let _ = DeleteObject(pen.into());
-            let _ = DeleteObject(brush.into());
-        }
+    fn arc_point(center_x: i32, center_y: i32, radius: i32, angle: f32) -> (i32, i32) {
+        (
+            (center_x as f32 + angle.cos() * radius as f32).round() as i32,
+            (center_y as f32 - angle.sin() * radius as f32).round() as i32,
+        )
+    }
+
+    unsafe fn draw_spinner_cap(hdc: HDC, x: i32, y: i32, radius: i32, color: COLORREF) {
+        let brush = CreateSolidBrush(color);
+        let pen = CreatePen(PS_SOLID, 1, color);
+        let old_brush = SelectObject(hdc, brush.into());
+        let old_pen = SelectObject(hdc, pen.into());
+        let _ = Ellipse(hdc, x - radius, y - radius, x + radius, y + radius);
+        SelectObject(hdc, old_pen);
+        SelectObject(hdc, old_brush);
+        let _ = DeleteObject(pen.into());
+        let _ = DeleteObject(brush.into());
     }
 
     unsafe fn draw_centered_text(

@@ -24,3 +24,4 @@ src-tauri/installer/stream-pad-maintenance-*.exe
 *.njsproj
 *.sln
 *.sw?
+*.aps
