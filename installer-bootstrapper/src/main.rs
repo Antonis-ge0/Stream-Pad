@@ -13,6 +13,7 @@ mod windows_installer {
         fs::{self, File},
         io::{Read, Write},
         os::windows::ffi::OsStrExt,
+        os::windows::process::CommandExt,
         path::{Path, PathBuf},
         process::Command,
         sync::{Arc, Mutex, OnceLock},
@@ -64,6 +65,7 @@ mod windows_installer {
     const LOGO_BITMAP: &[u8] = include_bytes!("../../src-tauri/installer/app-logo-160.bgra");
     const TIMER_ID: usize = 1;
     const TIMER_MS: u32 = 16;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
     const RELEASE_JSON_URL: &str =
         "https://github.com/Antonis-ge0/Stream-Pad/releases/latest/download/latest.json";
     const RELEASE_DOWNLOAD_BASE: &str = "https://github.com/Antonis-ge0/Stream-Pad/releases";
@@ -247,6 +249,10 @@ mod windows_installer {
                 message_loop();
             }
         }
+
+        if mode == AppMode::Uninstall {
+            schedule_temp_uninstaller_cleanup();
+        }
     }
 
     fn resolve_launch_mode() -> LaunchMode {
@@ -302,10 +308,9 @@ mod windows_installer {
                     .map(PathBuf::from)
                     .unwrap_or_else(default_uninstaller_path);
                 let passthrough_args = args.collect::<Vec<_>>();
-                std::process::exit(run_silent_uninstaller_as_code(
-                    &uninstall_path,
-                    &passthrough_args,
-                ));
+                let exit_code = run_silent_uninstaller_as_code(&uninstall_path, &passthrough_args);
+                schedule_temp_uninstaller_cleanup();
+                std::process::exit(exit_code);
             }
         }
 
@@ -353,6 +358,25 @@ mod windows_installer {
                 uninstall_path: default_uninstaller_path(),
             }
         }
+    }
+
+    fn schedule_temp_uninstaller_cleanup() {
+        let Ok(current_exe) = env::current_exe() else {
+            return;
+        };
+        let Some(temp_dir) = current_exe.parent() else {
+            return;
+        };
+        if temp_dir.file_name().and_then(|name| name.to_str()) != Some("stream-pad-uninstall") {
+            return;
+        }
+
+        let temp_dir = temp_dir.display().to_string().replace('"', "");
+        let cleanup_command = format!("ping -n 3 127.0.0.1 >nul & rmdir /s /q \"{temp_dir}\"");
+        let _ = Command::new("cmd")
+            .args(["/C", &cleanup_command])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
     }
 
     unsafe fn create_window(mode: AppMode) -> Option<HWND> {

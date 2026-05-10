@@ -26,6 +26,26 @@
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    SetFileAttributes "$INSTDIR\Uninstall Stream Pad.lnk" NORMAL
+    SetFileAttributes "$INSTDIR\stream-pad-maintenance.exe" NORMAL
+    SetFileAttributes "$INSTDIR\uninstall.exe" NORMAL
+    Delete "$INSTDIR\Uninstall Stream Pad.lnk"
+    Delete "$INSTDIR\stream-pad-maintenance.exe"
+    Delete "$INSTDIR\uninstall.exe"
+    RMDir /r "$INSTDIR"
+
+    DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
+    DeleteRegKey /ifempty SHCTX "${MANUKEY}"
+    DeleteRegValue HKCU "${MANUPRODUCTKEY}" "Installer Language"
+    DeleteRegKey /ifempty HKCU "${MANUPRODUCTKEY}"
+    DeleteRegKey /ifempty HKCU "${MANUKEY}"
+
+    SetShellVarContext current
+    RMDir /r "$APPDATA\${BUNDLEID}"
+    RMDir /r "$LOCALAPPDATA\${BUNDLEID}"
+  ${EndIf}
+
   SetShellVarContext current
   Delete "$DESKTOP\Stream Pad.lnk"
   Delete "$DESKTOP\StreamPad.lnk"
