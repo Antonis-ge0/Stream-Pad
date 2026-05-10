@@ -23,7 +23,7 @@ mod windows_installer {
     use windows::{
         core::{w, PCWSTR},
         Win32::{
-            Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
+            Foundation::{CloseHandle, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
             Graphics::Gdi::{
                 Arc, BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW,
                 CreatePen, CreateSolidBrush, DeleteDC, DeleteObject, DrawTextW, Ellipse, EndPaint,
@@ -34,15 +34,19 @@ mod windows_installer {
                 OUT_DEFAULT_PRECIS, PAINTSTRUCT, PS_SOLID, SRCCOPY, TRANSPARENT,
             },
             Storage::FileSystem::GetDiskFreeSpaceExW,
-            System::LibraryLoader::GetModuleHandleW,
+            System::{
+                LibraryLoader::GetModuleHandleW,
+                Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE},
+            },
             UI::{
                 Input::KeyboardAndMouse::ReleaseCapture,
+                Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW},
                 WindowsAndMessaging::{
                     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
                     GetSystemMetrics, LoadCursorW, PostMessageW, PostQuitMessage, RegisterClassW,
                     SendMessageW, SetTimer, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
-                    CW_USEDEFAULT, HTCAPTION, IDC_ARROW, MSG, SM_CXSCREEN, SM_CYSCREEN, SW_SHOW,
-                    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_LBUTTONDOWN,
+                    CW_USEDEFAULT, HTCAPTION, IDC_ARROW, MSG, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE,
+                    SW_SHOW, WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ERASEBKGND, WM_LBUTTONDOWN,
                     WM_NCLBUTTONDOWN, WM_PAINT, WM_TIMER, WNDCLASSW, WS_POPUP, WS_VISIBLE,
                 },
             },
@@ -1179,32 +1183,110 @@ mod windows_installer {
             "Please wait while we remove Stream Pad.",
         );
 
-        let status = Command::new(&uninstall_path)
-            .args(silent_uninstall_args(&[]))
-            .status()
+        let exit_code = run_elevated_uninstaller(&uninstall_path, &[])
             .map_err(|error| format!("Could not start the Stream Pad uninstaller: {error}"))?;
 
-        if status.success() {
+        if exit_code == 0 {
             Ok(())
         } else {
             Err(format!(
-                "The Stream Pad uninstaller exited with code {}.",
-                status
-                    .code()
-                    .map(|code| code.to_string())
-                    .unwrap_or_else(|| "unknown".to_string())
+                "The Stream Pad uninstaller exited with code {exit_code}."
             ))
         }
     }
 
     fn run_silent_uninstaller_as_code(uninstall_path: &Path, passthrough_args: &[OsString]) -> i32 {
-        match Command::new(uninstall_path)
-            .args(silent_uninstall_args(passthrough_args))
-            .status()
-        {
-            Ok(status) => status.code().unwrap_or(1),
+        match run_elevated_uninstaller(uninstall_path, passthrough_args) {
+            Ok(code) => code as i32,
             Err(_) => 1,
         }
+    }
+
+    fn run_elevated_uninstaller(
+        uninstall_path: &Path,
+        passthrough_args: &[OsString],
+    ) -> Result<u32, String> {
+        let args = silent_uninstall_args(passthrough_args);
+        let parameters = quote_windows_args(&args);
+        let file = to_wide_os(uninstall_path.as_os_str());
+        let params = to_wide_os(parameters.as_os_str());
+        let verb = to_wide("runas");
+        let directory = uninstall_path
+            .parent()
+            .map(|path| to_wide_os(path.as_os_str()))
+            .unwrap_or_else(|| to_wide(""));
+
+        let mut execute_info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            fMask: SEE_MASK_NOCLOSEPROCESS,
+            lpVerb: PCWSTR(verb.as_ptr()),
+            lpFile: PCWSTR(file.as_ptr()),
+            lpParameters: PCWSTR(params.as_ptr()),
+            lpDirectory: PCWSTR(directory.as_ptr()),
+            nShow: SW_HIDE.0,
+            ..Default::default()
+        };
+
+        unsafe {
+            ShellExecuteExW(&mut execute_info).map_err(|error| format!("{error}"))?;
+
+            if execute_info.hProcess.is_invalid() {
+                return Err("The elevated uninstaller process was not returned.".to_string());
+            }
+
+            WaitForSingleObject(execute_info.hProcess, INFINITE);
+
+            let mut exit_code = 1_u32;
+            let result = GetExitCodeProcess(execute_info.hProcess, &mut exit_code)
+                .map_err(|error| format!("{error}"));
+            let _ = CloseHandle(execute_info.hProcess);
+            result?;
+
+            Ok(exit_code)
+        }
+    }
+
+    fn quote_windows_args(args: &[OsString]) -> OsString {
+        OsString::from(
+            args.iter()
+                .map(quote_windows_arg)
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+    }
+
+    fn quote_windows_arg(arg: &OsString) -> String {
+        let value = arg.to_string_lossy();
+        if value.is_empty() {
+            return "\"\"".to_string();
+        }
+
+        if !value.chars().any(|ch| ch.is_whitespace() || ch == '"') {
+            return value.into_owned();
+        }
+
+        let mut quoted = String::from("\"");
+        let mut backslashes = 0;
+
+        for ch in value.chars() {
+            match ch {
+                '\\' => backslashes += 1,
+                '"' => {
+                    quoted.push_str(&"\\".repeat(backslashes * 2 + 1));
+                    quoted.push('"');
+                    backslashes = 0;
+                }
+                _ => {
+                    quoted.push_str(&"\\".repeat(backslashes));
+                    backslashes = 0;
+                    quoted.push(ch);
+                }
+            }
+        }
+
+        quoted.push_str(&"\\".repeat(backslashes * 2));
+        quoted.push('"');
+        quoted
     }
 
     fn silent_uninstall_args(passthrough_args: &[OsString]) -> Vec<OsString> {
@@ -1475,6 +1557,10 @@ mod windows_installer {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect()
+    }
+
+    fn to_wide_os(value: &OsStr) -> Vec<u16> {
+        value.encode_wide().chain(std::iter::once(0)).collect()
     }
 
     fn rgb(red: u8, green: u8, blue: u8) -> COLORREF {
