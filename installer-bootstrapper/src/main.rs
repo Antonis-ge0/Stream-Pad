@@ -27,9 +27,10 @@ mod windows_installer {
             Foundation::{CloseHandle, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
             Graphics::Gdi::{
                 Arc, BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW,
-                CreatePen, CreateSolidBrush, DeleteDC, DeleteObject, DrawTextW, Ellipse, EndPaint,
-                InvalidateRect, LineTo, MoveToEx, RoundRect, SelectObject, SetBkMode, SetTextColor,
-                StretchDIBits, BITMAPINFO, BITMAPINFOHEADER, CLEARTYPE_QUALITY,
+                CreatePen, CreateRoundRectRgn, CreateSolidBrush, DeleteDC, DeleteObject,
+                DrawTextW, Ellipse, EndPaint, InvalidateRect, LineTo, MoveToEx, RoundRect,
+                SelectObject, SetBkMode, SetTextColor, SetWindowRgn, StretchDIBits, BITMAPINFO,
+                BITMAPINFOHEADER, CLEARTYPE_QUALITY,
                 CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS, DT_CENTER,
                 DT_SINGLELINE, DT_VCENTER, FF_DONTCARE, FW_BOLD, FW_NORMAL, HDC,
                 OUT_DEFAULT_PRECIS, PAINTSTRUCT, PS_SOLID, SRCCOPY, TRANSPARENT,
@@ -58,6 +59,7 @@ mod windows_installer {
     const WINDOW_WIDTH: i32 = 980;
     const WINDOW_HEIGHT: i32 = 640;
     const LOGO_SIZE: i32 = 160;
+    const WINDOW_CORNER_RADIUS: i32 = 30;
     const ACTION_BUTTON_WIDTH: i32 = 162;
     const ACTION_BUTTON_HEIGHT: i32 = 46;
     const ACTION_BUTTON_LEFT: i32 = WINDOW_WIDTH / 2 - ACTION_BUTTON_WIDTH / 2;
@@ -309,6 +311,9 @@ mod windows_installer {
                     .unwrap_or_else(default_uninstaller_path);
                 let passthrough_args = args.collect::<Vec<_>>();
                 let exit_code = run_silent_uninstaller_as_code(&uninstall_path, &passthrough_args);
+                if exit_code == 0 && !is_update_uninstall(&passthrough_args) {
+                    schedule_install_dir_cleanup(&uninstall_path);
+                }
                 schedule_temp_uninstaller_cleanup();
                 std::process::exit(exit_code);
             }
@@ -379,6 +384,59 @@ mod windows_installer {
             .spawn();
     }
 
+    fn schedule_install_dir_cleanup(uninstall_path: &Path) {
+        let Some(install_dir) = uninstall_path.parent() else {
+            return;
+        };
+
+        if !is_safe_install_dir_cleanup_target(install_dir) {
+            return;
+        }
+
+        let cleanup_script = env::temp_dir().join("stream-pad-install-folder-cleanup.cmd");
+        let target = install_dir.display().to_string().replace('"', "");
+        let script = format!(
+            "@echo off\r\n\
+set \"TARGET={target}\"\r\n\
+for /L %%I in (1,1,45) do (\r\n\
+  attrib -R -S -H \"%TARGET%\\*\" /S /D >nul 2>nul\r\n\
+  rmdir /S /Q \"%TARGET%\" >nul 2>nul\r\n\
+  if not exist \"%TARGET%\" goto :done\r\n\
+  ping -n 2 127.0.0.1 >nul\r\n\
+)\r\n\
+:done\r\n\
+del \"%~f0\" >nul 2>nul\r\n"
+        );
+
+        if fs::write(&cleanup_script, script).is_err() {
+            return;
+        }
+
+        let params = OsString::from(format!("/D /C \"{}\"", cleanup_script.display()));
+        let file = to_wide("cmd.exe");
+        let params = to_wide_os(params.as_os_str());
+        let verb = to_wide("runas");
+
+        let mut execute_info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            lpVerb: PCWSTR(verb.as_ptr()),
+            lpFile: PCWSTR(file.as_ptr()),
+            lpParameters: PCWSTR(params.as_ptr()),
+            nShow: SW_HIDE.0,
+            ..Default::default()
+        };
+
+        unsafe {
+            let _ = ShellExecuteExW(&mut execute_info);
+        }
+    }
+
+    fn is_safe_install_dir_cleanup_target(path: &Path) -> bool {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("Stream Pad"))
+    }
+
     unsafe fn create_window(mode: AppMode) -> Option<HWND> {
         let module = GetModuleHandleW(None).ok()?;
         let instance = HINSTANCE(module.0);
@@ -434,9 +492,25 @@ mod windows_installer {
         )
         .ok()?;
 
+        apply_rounded_window_region(hwnd);
         let _ = ShowWindow(hwnd, SW_SHOW);
         SetTimer(Some(hwnd), TIMER_ID, TIMER_MS, None);
         Some(hwnd)
+    }
+
+    unsafe fn apply_rounded_window_region(hwnd: HWND) {
+        let region = CreateRoundRectRgn(
+            0,
+            0,
+            WINDOW_WIDTH + 1,
+            WINDOW_HEIGHT + 1,
+            WINDOW_CORNER_RADIUS,
+            WINDOW_CORNER_RADIUS,
+        );
+
+        if !region.is_invalid() {
+            let _ = SetWindowRgn(hwnd, Some(region), true);
+        }
     }
 
     unsafe fn message_loop() {
@@ -1211,6 +1285,7 @@ mod windows_installer {
             .map_err(|error| format!("Could not start the Stream Pad uninstaller: {error}"))?;
 
         if exit_code == 0 {
+            schedule_install_dir_cleanup(&uninstall_path);
             Ok(())
         } else {
             Err(format!(
@@ -1333,6 +1408,11 @@ mod windows_installer {
                 || value.eq_ignore_ascii_case("/S")
                 || value.starts_with("_?=")
         })
+    }
+
+    fn is_update_uninstall(args: &[OsString]) -> bool {
+        args.iter()
+            .any(|arg| arg.to_string_lossy().eq_ignore_ascii_case("/UPDATE"))
     }
 
     fn resolve_installer(state: &AppState) -> Result<PathBuf, String> {
