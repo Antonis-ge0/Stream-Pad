@@ -9,7 +9,7 @@ fn main() {
 mod windows_installer {
     use std::{
         env,
-        ffi::OsStr,
+        ffi::{OsStr, OsString},
         fs::{self, File},
         io::{Read, Write},
         os::windows::ffi::OsStrExt,
@@ -27,12 +27,11 @@ mod windows_installer {
             Graphics::Gdi::{
                 Arc, BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW,
                 CreatePen, CreateSolidBrush, DeleteDC, DeleteObject, DrawTextW, Ellipse, EndPaint,
-                InvalidateRect, LineTo, MoveToEx, RoundRect, SelectObject, SetBkMode,
-                SetTextColor, StretchDIBits, BITMAPINFO,
-                BITMAPINFOHEADER, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET,
-                DEFAULT_PITCH, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
-                FF_DONTCARE, FW_BOLD, FW_NORMAL, HDC, OUT_DEFAULT_PRECIS, PAINTSTRUCT, PS_SOLID,
-                SRCCOPY, TRANSPARENT,
+                InvalidateRect, LineTo, MoveToEx, RoundRect, SelectObject, SetBkMode, SetTextColor,
+                StretchDIBits, BITMAPINFO, BITMAPINFOHEADER, CLEARTYPE_QUALITY,
+                CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS, DT_CENTER,
+                DT_SINGLELINE, DT_VCENTER, FF_DONTCARE, FW_BOLD, FW_NORMAL, HDC,
+                OUT_DEFAULT_PRECIS, PAINTSTRUCT, PS_SOLID, SRCCOPY, TRANSPARENT,
             },
             Storage::FileSystem::GetDiskFreeSpaceExW,
             System::LibraryLoader::GetModuleHandleW,
@@ -164,7 +163,12 @@ mod windows_installer {
             false
         }
 
-        fn set_phase(&self, phase: ViewPhase, status: impl Into<String>, detail: impl Into<String>) {
+        fn set_phase(
+            &self,
+            phase: ViewPhase,
+            status: impl Into<String>,
+            detail: impl Into<String>,
+        ) {
             if let Ok(mut view) = self.view.lock() {
                 view.phase = phase;
                 view.status = status.into();
@@ -198,14 +202,17 @@ mod windows_installer {
         }
 
         fn snapshot(&self) -> InstallerView {
-            self.view.lock().map(|view| view.clone()).unwrap_or_else(|_| InstallerView {
-                phase: ViewPhase::Failed,
-                detail: "The installer state could not be read.".to_string(),
-                status: "Failed".to_string(),
-                install_path: display_install_path(),
-                free_space: c_drive_free_space(),
-                download: None,
-            })
+            self.view
+                .lock()
+                .map(|view| view.clone())
+                .unwrap_or_else(|_| InstallerView {
+                    phase: ViewPhase::Failed,
+                    detail: "The installer state could not be read.".to_string(),
+                    status: "Failed".to_string(),
+                    install_path: display_install_path(),
+                    free_space: c_drive_free_space(),
+                    download: None,
+                })
         }
     }
 
@@ -246,8 +253,35 @@ mod windows_installer {
                     .next()
                     .map(PathBuf::from)
                     .unwrap_or_else(default_uninstaller_path);
+                let passthrough_args = args.collect::<Vec<_>>();
 
-                return relaunch_uninstaller_from_temp(uninstall_path);
+                if should_uninstall_without_custom_ui(&passthrough_args) {
+                    return relaunch_uninstaller_from_temp(
+                        uninstall_path,
+                        "--uninstall-quiet-temp",
+                        passthrough_args,
+                    );
+                }
+
+                return relaunch_uninstaller_from_temp(
+                    uninstall_path,
+                    "--uninstall-temp",
+                    Vec::new(),
+                );
+            }
+
+            if arg == "--uninstall-quiet" {
+                let uninstall_path = args
+                    .next()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(default_uninstaller_path);
+                let passthrough_args = args.collect::<Vec<_>>();
+
+                return relaunch_uninstaller_from_temp(
+                    uninstall_path,
+                    "--uninstall-quiet-temp",
+                    passthrough_args,
+                );
             }
 
             if arg == "--uninstall-temp" {
@@ -257,30 +291,59 @@ mod windows_installer {
                     .unwrap_or_else(default_uninstaller_path);
                 return LaunchMode::Uninstall { uninstall_path };
             }
+
+            if arg == "--uninstall-quiet-temp" {
+                let uninstall_path = args
+                    .next()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(default_uninstaller_path);
+                let passthrough_args = args.collect::<Vec<_>>();
+                std::process::exit(run_silent_uninstaller_as_code(
+                    &uninstall_path,
+                    &passthrough_args,
+                ));
+            }
         }
 
         LaunchMode::Install
     }
 
-    fn relaunch_uninstaller_from_temp(uninstall_path: PathBuf) -> LaunchMode {
+    fn relaunch_uninstaller_from_temp(
+        uninstall_path: PathBuf,
+        temp_mode_arg: &str,
+        passthrough_args: Vec<OsString>,
+    ) -> LaunchMode {
         let temp_dir = env::temp_dir().join("stream-pad-uninstall");
         let temp_exe = temp_dir.join("Stream Pad Uninstaller.exe");
         let current_exe = match env::current_exe() {
             Ok(path) => path,
+            Err(_) if temp_mode_arg == "--uninstall-quiet-temp" => {
+                std::process::exit(run_silent_uninstaller_as_code(
+                    &uninstall_path,
+                    &passthrough_args,
+                ));
+            }
             Err(_) => return LaunchMode::Uninstall { uninstall_path },
         };
 
         if fs::create_dir_all(&temp_dir).is_err() || fs::copy(&current_exe, &temp_exe).is_err() {
+            if temp_mode_arg == "--uninstall-quiet-temp" {
+                std::process::exit(run_silent_uninstaller_as_code(
+                    &uninstall_path,
+                    &passthrough_args,
+                ));
+            }
             return LaunchMode::Uninstall { uninstall_path };
         }
 
-        if Command::new(&temp_exe)
-            .arg("--uninstall-temp")
-            .arg(uninstall_path)
-            .spawn()
-            .is_ok()
-        {
+        let mut command = Command::new(&temp_exe);
+        command.arg(temp_mode_arg).arg(&uninstall_path);
+        command.args(passthrough_args);
+
+        if command.spawn().is_ok() {
             LaunchMode::Relaunched
+        } else if temp_mode_arg == "--uninstall-quiet-temp" {
+            std::process::exit(run_silent_uninstaller_as_code(&uninstall_path, &[]));
         } else {
             LaunchMode::Uninstall {
                 uninstall_path: default_uninstaller_path(),
@@ -828,7 +891,11 @@ mod windows_installer {
         let _ = DeleteObject(detail_font.into());
     }
 
-    unsafe fn draw_action_button(hdc: HDC, label: &str, font: windows::Win32::Graphics::Gdi::HFONT) {
+    unsafe fn draw_action_button(
+        hdc: HDC,
+        label: &str,
+        font: windows::Win32::Graphics::Gdi::HFONT,
+    ) {
         let brush = CreateSolidBrush(rgb(10, 14, 18));
         let pen = CreatePen(PS_SOLID, 1, rgb(10, 14, 18));
         let old_brush = SelectObject(hdc, brush.into());
@@ -864,10 +931,17 @@ mod windows_installer {
     }
 
     unsafe fn draw_progress_bar(hdc: HDC, x: i32, y: i32, width: i32, height: i32, progress: f64) {
-        draw_pill(hdc, x, y, width, height, rgb(248, 248, 247), rgb(226, 226, 224));
+        draw_pill(
+            hdc,
+            x,
+            y,
+            width,
+            height,
+            rgb(248, 248, 247),
+            rgb(226, 226, 224),
+        );
 
-        let fill_width = ((width as f64 * progress.clamp(0.0, 1.0)).round() as i32)
-            .clamp(0, width);
+        let fill_width = ((width as f64 * progress.clamp(0.0, 1.0)).round() as i32).clamp(0, width);
         if fill_width > 0 {
             if fill_width <= height {
                 let brush = CreateSolidBrush(rgb(10, 14, 18));
@@ -880,7 +954,15 @@ mod windows_installer {
                 let _ = DeleteObject(pen.into());
                 let _ = DeleteObject(brush.into());
             } else {
-                draw_pill(hdc, x, y, fill_width, height, rgb(10, 14, 18), rgb(10, 14, 18));
+                draw_pill(
+                    hdc,
+                    x,
+                    y,
+                    fill_width,
+                    height,
+                    rgb(10, 14, 18),
+                    rgb(10, 14, 18),
+                );
             }
         }
     }
@@ -1029,7 +1111,12 @@ mod windows_installer {
         SetTextColor(hdc, color);
 
         let mut text = to_wide(text);
-        DrawTextW(hdc, &mut text, &mut rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DrawTextW(
+            hdc,
+            &mut text,
+            &mut rect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+        );
 
         SelectObject(hdc, old_font);
     }
@@ -1093,7 +1180,7 @@ mod windows_installer {
         );
 
         let status = Command::new(&uninstall_path)
-            .arg("/S")
+            .args(silent_uninstall_args(&[]))
             .status()
             .map_err(|error| format!("Could not start the Stream Pad uninstaller: {error}"))?;
 
@@ -1108,6 +1195,38 @@ mod windows_installer {
                     .unwrap_or_else(|| "unknown".to_string())
             ))
         }
+    }
+
+    fn run_silent_uninstaller_as_code(uninstall_path: &Path, passthrough_args: &[OsString]) -> i32 {
+        match Command::new(uninstall_path)
+            .args(silent_uninstall_args(passthrough_args))
+            .status()
+        {
+            Ok(status) => status.code().unwrap_or(1),
+            Err(_) => 1,
+        }
+    }
+
+    fn silent_uninstall_args(passthrough_args: &[OsString]) -> Vec<OsString> {
+        let mut args = Vec::new();
+        if !passthrough_args
+            .iter()
+            .any(|arg| arg.to_string_lossy().eq_ignore_ascii_case("/S"))
+        {
+            args.push(OsString::from("/S"));
+        }
+        args.extend(passthrough_args.iter().cloned());
+        args
+    }
+
+    fn should_uninstall_without_custom_ui(args: &[OsString]) -> bool {
+        args.iter().any(|arg| {
+            let value = arg.to_string_lossy();
+            value.eq_ignore_ascii_case("/UPDATE")
+                || value.eq_ignore_ascii_case("/P")
+                || value.eq_ignore_ascii_case("/S")
+                || value.starts_with("_?=")
+        })
     }
 
     fn resolve_installer(state: &AppState) -> Result<PathBuf, String> {
@@ -1144,9 +1263,7 @@ mod windows_installer {
             .find(|path| {
                 path.file_name()
                     .and_then(|name| name.to_str())
-                    .map(|name| {
-                        name.starts_with("Stream.Pad_") && name.ends_with("_x64-setup.exe")
-                    })
+                    .map(|name| name.starts_with("Stream.Pad_") && name.ends_with("_x64-setup.exe"))
                     .unwrap_or(false)
             })
     }
@@ -1287,16 +1404,14 @@ mod windows_installer {
         let mut free_bytes = 0_u64;
         let root = to_wide(r"C:\");
         let result = unsafe {
-            GetDiskFreeSpaceExW(
-                PCWSTR(root.as_ptr()),
-                Some(&mut free_bytes),
-                None,
-                None,
-            )
+            GetDiskFreeSpaceExW(PCWSTR(root.as_ptr()), Some(&mut free_bytes), None, None)
         };
 
         if result.is_ok() {
-            format!("{:.1} GB available", free_bytes as f64 / 1024.0 / 1024.0 / 1024.0)
+            format!(
+                "{:.1} GB available",
+                free_bytes as f64 / 1024.0 / 1024.0 / 1024.0
+            )
         } else {
             "Unavailable".to_string()
         }

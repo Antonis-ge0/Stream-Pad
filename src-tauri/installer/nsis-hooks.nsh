@@ -10,12 +10,19 @@
 
   IfFileExists "$INSTDIR\stream-pad-maintenance.exe" 0 stream_pad_maintenance_done
     WriteRegStr SHCTX "${UNINSTKEY}" "UninstallString" "$\"$INSTDIR\stream-pad-maintenance.exe$\" --uninstall $\"$INSTDIR\uninstall.exe$\""
-    WriteRegStr SHCTX "${UNINSTKEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
+    WriteRegStr SHCTX "${UNINSTKEY}" "QuietUninstallString" "$\"$INSTDIR\stream-pad-maintenance.exe$\" --uninstall-quiet $\"$INSTDIR\uninstall.exe$\""
+    CreateShortCut "$INSTDIR\Uninstall Stream Pad.lnk" "$INSTDIR\stream-pad-maintenance.exe" "--uninstall $\"$INSTDIR\uninstall.exe$\"" "$INSTDIR\stream-pad-maintenance.exe" 0
+    SetFileAttributes "$INSTDIR\uninstall.exe" HIDDEN
   stream_pad_maintenance_done:
 
   SetShellVarContext all
   Delete "$DESKTOP\StreamPad.lnk"
   Delete "$DESKTOP\Stream Deck.lnk"
+!macroend
+
+!macro NSIS_HOOK_PREUNINSTALL
+  SetFileAttributes "$INSTDIR\uninstall.exe" NORMAL
+  Delete "$INSTDIR\Uninstall Stream Pad.lnk"
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
