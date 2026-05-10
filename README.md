@@ -33,6 +33,9 @@ Go to the latest GitHub Release and download one of these Windows files:
 Use `Stream.Pad_<version>_x64-installer.exe` for the normal installation. It
 shows the branded installer window and installs the latest version.
 
+The installer defaults to `C:\Program Files\Stream Pad` and may ask for
+Administrator permission.
+
 The release also includes `latest.json` and `Stream.Pad_<version>_x64-setup.exe`
 for the built-in updater. Most users do not need to download those manually.
 

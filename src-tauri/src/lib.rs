@@ -127,8 +127,8 @@ struct AppState {
 }
 
 const TRAY_MENU_LABEL: &str = "tray-menu";
-const TRAY_MENU_WIDTH: i32 = 188;
-const TRAY_MENU_HEIGHT: i32 = 82;
+const TRAY_MENU_WIDTH: i32 = 164;
+const TRAY_MENU_HEIGHT: i32 = 72;
 
 #[cfg(windows)]
 mod native_drop {
