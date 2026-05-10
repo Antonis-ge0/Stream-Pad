@@ -311,6 +311,9 @@ mod windows_installer {
                     .unwrap_or_else(default_uninstaller_path);
                 let passthrough_args = args.collect::<Vec<_>>();
                 let exit_code = run_silent_uninstaller_as_code(&uninstall_path, &passthrough_args);
+                if exit_code == 0 && !is_update_uninstall(&passthrough_args) {
+                    let _ = cleanup_after_uninstall(&uninstall_path);
+                }
                 schedule_temp_uninstaller_cleanup();
                 std::process::exit(exit_code);
             }
@@ -347,11 +350,17 @@ mod windows_installer {
             return LaunchMode::Uninstall { uninstall_path };
         }
 
-        let mut command = Command::new(&temp_exe);
-        command.arg(temp_mode_arg).arg(&uninstall_path);
-        command.args(passthrough_args);
+        let mut elevated_args = vec![
+            OsString::from(temp_mode_arg),
+            uninstall_path.as_os_str().to_os_string(),
+        ];
+        elevated_args.extend(passthrough_args.iter().cloned());
 
-        if command.spawn().is_ok() {
+        if spawn_elevated_detached(
+            &temp_exe,
+            &elevated_args,
+            temp_mode_arg != "--uninstall-quiet-temp",
+        ) {
             LaunchMode::Relaunched
         } else if temp_mode_arg == "--uninstall-quiet-temp" {
             std::process::exit(run_silent_uninstaller_as_code(&uninstall_path, &[]));
@@ -379,6 +388,130 @@ mod windows_installer {
             .args(["/C", &cleanup_command])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn();
+    }
+
+    fn spawn_elevated_detached(file_path: &Path, args: &[OsString], show_window: bool) -> bool {
+        let parameters = quote_windows_args(args);
+        let file = to_wide_os(file_path.as_os_str());
+        let params = to_wide_os(parameters.as_os_str());
+        let verb = to_wide("runas");
+        let directory = file_path
+            .parent()
+            .map(|path| to_wide_os(path.as_os_str()))
+            .unwrap_or_else(|| to_wide(""));
+
+        let mut execute_info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            lpVerb: PCWSTR(verb.as_ptr()),
+            lpFile: PCWSTR(file.as_ptr()),
+            lpParameters: PCWSTR(params.as_ptr()),
+            lpDirectory: PCWSTR(directory.as_ptr()),
+            nShow: if show_window { SW_SHOW.0 } else { SW_HIDE.0 },
+            ..Default::default()
+        };
+
+        unsafe { ShellExecuteExW(&mut execute_info).is_ok() }
+    }
+
+    fn cleanup_after_uninstall(uninstall_path: &Path) -> Result<(), String> {
+        let install_dir = uninstall_path
+            .parent()
+            .filter(|path| is_safe_install_dir_cleanup_target(path))
+            .map(Path::to_path_buf);
+
+        for data_dir in app_data_cleanup_targets() {
+            remove_path_with_retries(&data_dir, 8)?;
+        }
+
+        if let Some(install_dir) = install_dir {
+            remove_path_with_retries(&install_dir, 30)?;
+        }
+
+        Ok(())
+    }
+
+    fn app_data_cleanup_targets() -> Vec<PathBuf> {
+        let mut targets = Vec::new();
+
+        if let Some(appdata) = env::var_os("APPDATA").map(PathBuf::from) {
+            targets.push(appdata.join("com.antonis.streampad"));
+            targets.push(appdata.join("Stream Pad"));
+        }
+
+        if let Some(local_appdata) = env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+            targets.push(local_appdata.join("com.antonis.streampad"));
+            targets.push(local_appdata.join("Stream Pad"));
+        }
+
+        targets
+    }
+
+    fn is_safe_install_dir_cleanup_target(path: &Path) -> bool {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("Stream Pad"))
+            && path.parent().is_some()
+    }
+
+    fn remove_path_with_retries(path: &Path, attempts: usize) -> Result<(), String> {
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let attempts = attempts.max(1);
+        let mut last_error = None;
+
+        for _ in 0..attempts {
+            let _ = clear_readonly_recursive(path);
+            let result = if path.is_dir() {
+                fs::remove_dir_all(path)
+            } else {
+                fs::remove_file(path)
+            };
+
+            match result {
+                Ok(_) => return Ok(()),
+                Err(_) if !path.exists() => return Ok(()),
+                Err(error) => last_error = Some(error.to_string()),
+            }
+
+            thread::sleep(Duration::from_millis(350));
+        }
+
+        if path.exists() {
+            Err(format!(
+                "Could not remove {}{}",
+                path.display(),
+                last_error
+                    .map(|error| format!(": {error}"))
+                    .unwrap_or_default()
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn clear_readonly_recursive(path: &Path) -> Result<(), String> {
+        let metadata = match fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(_) => return Ok(()),
+        };
+
+        if metadata.is_dir() {
+            if let Ok(entries) = fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    let _ = clear_readonly_recursive(&entry.path());
+                }
+            }
+        }
+
+        let mut permissions = metadata.permissions();
+        if permissions.readonly() {
+            permissions.set_readonly(false);
+            fs::set_permissions(path, permissions).map_err(|error| error.to_string())?;
+        }
+
+        Ok(())
     }
 
     unsafe fn create_window(mode: AppMode) -> Option<HWND> {
@@ -1229,6 +1362,7 @@ mod windows_installer {
             .map_err(|error| format!("Could not start the Stream Pad uninstaller: {error}"))?;
 
         if exit_code == 0 {
+            cleanup_after_uninstall(&uninstall_path)?;
             Ok(())
         } else {
             Err(format!(
@@ -1351,6 +1485,11 @@ mod windows_installer {
                 || value.eq_ignore_ascii_case("/S")
                 || value.starts_with("_?=")
         })
+    }
+
+    fn is_update_uninstall(args: &[OsString]) -> bool {
+        args.iter()
+            .any(|arg| arg.to_string_lossy().eq_ignore_ascii_case("/UPDATE"))
     }
 
     fn resolve_installer(state: &AppState) -> Result<PathBuf, String> {
