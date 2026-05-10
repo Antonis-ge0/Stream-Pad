@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Stream Pad",
-  "version": "0.1.11",
+  "mainBinaryName": "Stream Pad",
+  "version": "0.1.12",
   "identifier": "com.antonis.streampad",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -47,7 +48,8 @@
         "headerImage": "installer/nsis-header.bmp",
         "uninstallerHeaderImage": "installer/nsis-uninstaller-header.bmp",
         "sidebarImage": "installer/nsis-sidebar.bmp",
-        "startMenuFolder": "Stream Pad"
+        "startMenuFolder": "Stream Pad",
+        "installerHooks": "installer/nsis-hooks.nsh"
       }
     }
   },
