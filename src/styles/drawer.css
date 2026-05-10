@@ -172,8 +172,7 @@
   flex-shrink: 0;
 }
 
-.drawerHint,
-.authorMe {
+.drawerHint {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;

@@ -602,7 +602,6 @@ export function AppDrawer({
                 A customizable desktop control surface for launching apps, opening links,
                 playing sounds, opening folders, and organizing quick actions into profiles.
               </p>
-              <p className="authorMe">Antonis Georgosopoulos</p>
             </div>
           </div>
         )}
