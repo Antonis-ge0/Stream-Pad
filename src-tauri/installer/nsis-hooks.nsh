@@ -35,6 +35,16 @@
     Delete "$INSTDIR\uninstall.exe"
     RMDir /r "$INSTDIR"
 
+    StrCpy $0 "$TEMP\stream-pad-cleanup.cmd"
+    FileOpen $1 "$0" w
+    FileWrite $1 "@echo off$\r$\n"
+    FileWrite $1 "ping -n 4 127.0.0.1 >nul$\r$\n"
+    FileWrite $1 "attrib -R -S -H $\"$INSTDIR\*$\" /S /D >nul 2>nul$\r$\n"
+    FileWrite $1 "rmdir /S /Q $\"$INSTDIR$\" >nul 2>nul$\r$\n"
+    FileWrite $1 "del $\"%~f0$\" >nul 2>nul$\r$\n"
+    FileClose $1
+    ExecShell "open" "$SYSDIR\cmd.exe" "/C $\"$0$\"" SW_HIDE
+
     DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"
     DeleteRegValue HKCU "${MANUPRODUCTKEY}" "Installer Language"
