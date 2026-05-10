@@ -1,6 +1,6 @@
 [package]
 name = "StreamPad"
-version = "0.1.15"
+version = "0.1.16"
 authors = ["Antonis Georgosopoulos"]
 edition = "2021"
 license = "MIT"

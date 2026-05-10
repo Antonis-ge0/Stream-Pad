@@ -1,10 +1,11 @@
 {
   "name": "streampad",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:bundle-tools": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-bundle-tools.ps1",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

@@ -12,6 +12,7 @@ dist
 dist-ssr
 .env
 *.local
+src-tauri/installer/stream-pad-maintenance-*.exe
 
 # Editor directories and files
 .vscode/*

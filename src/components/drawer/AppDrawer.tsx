@@ -598,6 +598,7 @@ export function AppDrawer({
               <img className="aboutAppIcon" src={aboutIcon} alt={APP_CONFIG.name} />
               <h2>{APP_CONFIG.name}</h2>
               <p className="aboutVersion">Version {APP_CONFIG.version}</p>
+              <p className="aboutCopyright">Copyright (c) 2026 Stream Pad</p>
               <p className="aboutDescription">
                 A customizable desktop control surface for launching apps, opening links,
                 playing sounds, opening folders, and organizing quick actions into profiles.

@@ -1,6 +1,6 @@
 export const APP_CONFIG = {
   name: "Stream Pad",
-  version: "0.1.15",
+  version: "0.1.16",
   feedbackFormUrl:
     "https://docs.google.com/forms/d/e/1FAIpQLSeNMxf6YHH9jKiOnXKVtkDlyra7X9zx19LP-UiTwLGW3kAkkA/viewform",
   maxSoundDurationSeconds: 30,
