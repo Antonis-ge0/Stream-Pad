@@ -30,25 +30,10 @@
     SetFileAttributes "$INSTDIR\Uninstall Stream Pad.lnk" NORMAL
     SetFileAttributes "$INSTDIR\stream-pad-maintenance.exe" NORMAL
     SetFileAttributes "$INSTDIR\uninstall.exe" NORMAL
-    Delete "$INSTDIR\Uninstall Stream Pad.lnk"
-    Delete "$INSTDIR\stream-pad-maintenance.exe"
-    Delete "$INSTDIR\uninstall.exe"
-    RMDir /r "$INSTDIR"
-
-    StrCpy $0 "$TEMP\stream-pad-cleanup.cmd"
-    FileOpen $1 "$0" w
-    FileWrite $1 "@echo off$\r$\n"
-    FileWrite $1 "set $\"TARGET=$INSTDIR$\"$\r$\n"
-    FileWrite $1 "for /L %%I in (1,1,45) do ($\r$\n"
-    FileWrite $1 "  attrib -R -S -H $\"%TARGET%\*$\" /S /D >nul 2>nul$\r$\n"
-    FileWrite $1 "  rmdir /S /Q $\"%TARGET%$\" >nul 2>nul$\r$\n"
-    FileWrite $1 "  if not exist $\"%TARGET%$\" goto :done$\r$\n"
-    FileWrite $1 "  ping -n 2 127.0.0.1 >nul$\r$\n"
-    FileWrite $1 ")$\r$\n"
-    FileWrite $1 ":done$\r$\n"
-    FileWrite $1 "del $\"%~f0$\" >nul 2>nul$\r$\n"
-    FileClose $1
-    ExecShell "open" "$SYSDIR\cmd.exe" "/Q /D /C $\"$0$\"" SW_HIDE
+    Delete /REBOOTOK "$INSTDIR\Uninstall Stream Pad.lnk"
+    Delete /REBOOTOK "$INSTDIR\stream-pad-maintenance.exe"
+    Delete /REBOOTOK "$INSTDIR\uninstall.exe"
+    RMDir /r /REBOOTOK "$INSTDIR"
 
     DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"
@@ -57,8 +42,10 @@
     DeleteRegKey /ifempty HKCU "${MANUKEY}"
 
     SetShellVarContext current
-    RMDir /r "$APPDATA\${BUNDLEID}"
-    RMDir /r "$LOCALAPPDATA\${BUNDLEID}"
+    RMDir /r /REBOOTOK "$APPDATA\${BUNDLEID}"
+    RMDir /r /REBOOTOK "$LOCALAPPDATA\${BUNDLEID}"
+    RMDir /r /REBOOTOK "$APPDATA\Stream Pad"
+    RMDir /r /REBOOTOK "$LOCALAPPDATA\Stream Pad"
   ${EndIf}
 
   SetShellVarContext current
