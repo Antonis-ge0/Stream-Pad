@@ -17,6 +17,12 @@ use tauri_plugin_autostart::MacosLauncher;
 use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 
+#[cfg(windows)]
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    mouse_event, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE,
+    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
+};
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct DeckConfig {
@@ -1038,6 +1044,98 @@ async fn trigger_button(
     Ok(())
 }
 
+fn handle_remote_mouse_message(value: &serde_json::Value) -> Result<(), String> {
+    match value["type"].as_str() {
+        Some("mouseMove") => {
+            let dx = value["dx"].as_f64().ok_or("Missing mouse dx.")?;
+            let dy = value["dy"].as_f64().ok_or("Missing mouse dy.")?;
+            remote_mouse_move(dx, dy)
+        }
+        Some("mouseClick") => {
+            let button = value["button"]
+                .as_str()
+                .ok_or("Missing mouse button.")?;
+            remote_mouse_click(button)
+        }
+        Some("mouseScroll") => {
+            let dy = value["dy"].as_f64().ok_or("Missing mouse scroll amount.")?;
+            remote_mouse_scroll(dy)
+        }
+        _ => Ok(()),
+    }
+}
+
+#[cfg(windows)]
+fn remote_mouse_move(dx: f64, dy: f64) -> Result<(), String> {
+    unsafe {
+        mouse_event(
+            MOUSEEVENTF_MOVE,
+            clamp_mouse_delta(dx),
+            clamp_mouse_delta(dy),
+            0,
+            0,
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn remote_mouse_move(_dx: f64, _dy: f64) -> Result<(), String> {
+    Err("Remote touchpad is only supported on Windows.".to_string())
+}
+
+#[cfg(windows)]
+fn remote_mouse_click(button: &str) -> Result<(), String> {
+    let (down, up) = match button {
+        "left" => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
+        "right" => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
+        _ => return Err("Unsupported mouse button.".to_string()),
+    };
+
+    unsafe {
+        mouse_event(down, 0, 0, 0, 0);
+        mouse_event(up, 0, 0, 0, 0);
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn remote_mouse_click(_button: &str) -> Result<(), String> {
+    Err("Remote touchpad is only supported on Windows.".to_string())
+}
+
+#[cfg(windows)]
+fn remote_mouse_scroll(dy: f64) -> Result<(), String> {
+    unsafe {
+        mouse_event(
+            MOUSEEVENTF_WHEEL,
+            0,
+            0,
+            clamp_scroll_delta(dy),
+            0,
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn remote_mouse_scroll(_dy: f64) -> Result<(), String> {
+    Err("Remote touchpad is only supported on Windows.".to_string())
+}
+
+#[cfg(windows)]
+fn clamp_mouse_delta(value: f64) -> i32 {
+    value.round().clamp(-250.0, 250.0) as i32
+}
+
+#[cfg(windows)]
+fn clamp_scroll_delta(value: f64) -> i32 {
+    value.round().clamp(-1200.0, 1200.0) as i32
+}
+
 async fn websocket_server(app: AppHandle, state: AppState) {
     let listener = TcpListener::bind("0.0.0.0:37123")
         .await
@@ -1075,6 +1173,19 @@ async fn websocket_server(app: AppHandle, state: AppState) {
             while let Some(Ok(msg)) = read.next().await {
                 if let Ok(text) = msg.to_text() {
                     if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
+                        if matches!(
+                            value["type"].as_str(),
+                            Some("mouseMove" | "mouseClick" | "mouseScroll")
+                        ) {
+                            if let Err(message) = handle_remote_mouse_message(&value) {
+                                let response = serde_json::json!({
+                                    "type": "error",
+                                    "message": message
+                                });
+                                let _ = tx.send(response.to_string());
+                            }
+                        }
+
                         if value["type"] == "triggerButton" {
                             if let Some(button_id) = value["buttonId"].as_str() {
                                 let profile_id = value["profileId"].as_str().map(|s| s.to_string());
