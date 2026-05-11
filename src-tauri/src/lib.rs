@@ -135,6 +135,7 @@ struct AppState {
 const TRAY_MENU_LABEL: &str = "tray-menu";
 const TRAY_MENU_WIDTH: i32 = 164;
 const TRAY_MENU_HEIGHT: i32 = 72;
+const RELEASE_DOWNLOAD_BASE: &str = "https://github.com/Antonis-ge0/Stream-Pad/releases";
 
 #[cfg(windows)]
 mod native_drop {
@@ -678,6 +679,98 @@ fn open_external_url(url: String) -> Result<(), String> {
     let normalized_url = normalize_web_url(&url).ok_or("Invalid URL")?;
 
     open::that(normalized_url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_update_with_visual_installer(
+    app: AppHandle,
+    version: String,
+) -> Result<(), String> {
+    let version = sanitize_release_version(&version)?;
+
+    #[cfg(windows)]
+    {
+        let installer_path =
+            tauri::async_runtime::spawn_blocking(move || download_visual_update_installer(&version))
+                .await
+                .map_err(|error| format!("Could not prepare the Stream Pad updater: {error}"))??;
+
+        Command::new(&installer_path)
+            .arg("--update")
+            .spawn()
+            .map_err(|error| format!("Could not open the Stream Pad updater: {error}"))?;
+
+        app.exit(0);
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        let _ = version;
+        Err("The visual Stream Pad updater is only available on Windows.".to_string())
+    }
+}
+
+fn sanitize_release_version(version: &str) -> Result<String, String> {
+    let version = version.trim().trim_start_matches('v');
+
+    if version.is_empty()
+        || !version
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
+    {
+        return Err("The update version could not be used safely.".to_string());
+    }
+
+    Ok(version.to_string())
+}
+
+#[cfg(windows)]
+fn to_wide_null(value: &str) -> Vec<u16> {
+    value.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(windows)]
+fn download_visual_update_installer(version: &str) -> Result<PathBuf, String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{core::PCWSTR, Win32::System::Com::Urlmon::URLDownloadToFileW};
+
+    let installer_name = format!("Stream.Pad_{version}_x64-installer.exe");
+    let installer_url = format!("{RELEASE_DOWNLOAD_BASE}/download/v{version}/{installer_name}");
+    let temp_dir = std::env::temp_dir().join("stream-pad-update");
+    let installer_path = temp_dir.join(installer_name);
+
+    fs::create_dir_all(&temp_dir)
+        .map_err(|error| format!("Could not prepare the update folder: {error}"))?;
+
+    if installer_path.exists() {
+        let _ = fs::remove_file(&installer_path);
+    }
+
+    let url = to_wide_null(&installer_url);
+    let path = installer_path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+
+    unsafe {
+        URLDownloadToFileW(
+            None,
+            PCWSTR(url.as_ptr()),
+            PCWSTR(path.as_ptr()),
+            0,
+            None,
+        )
+        .map_err(|error| format!("Could not download the Stream Pad updater: {error}"))?;
+    }
+
+    if !installer_path.exists() {
+        return Err("The Stream Pad updater was not downloaded.".to_string());
+    }
+
+    Ok(installer_path)
 }
 
 #[tauri::command]
@@ -1515,6 +1608,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             describe_dropped_file,
             hide_stream_pad_tray_menu,
+            install_update_with_visual_installer,
             launch_stream_pad_from_tray,
             load_config,
             open_default_apps_settings,

@@ -20,8 +20,7 @@ import {
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { APP_CONFIG } from "@/config/appConfig";
 import type { DeckSettings } from "@/domain/deck";
 import type { Theme } from "@/hooks/useTheme";
@@ -105,7 +104,6 @@ export function AppDrawer({
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [updateMessage, setUpdateMessage] = useState("Check if a new version is available.");
-  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [currentHelpPage, setCurrentHelpPage] = useState(1);
   const [feedbackStatus, setFeedbackStatus] = useState<FeedbackStatus>("idle");
   const sectionTitle =
@@ -171,7 +169,6 @@ export function AppDrawer({
   async function handleCheckForUpdates() {
     setSection("updates");
     setAvailableUpdate(null);
-    setDownloadProgress(null);
     setUpdateStatus("checking");
     setUpdateMessage("Checking for updates...");
 
@@ -198,41 +195,15 @@ export function AppDrawer({
       return;
     }
 
-    let downloaded = 0;
-    let contentLength = 0;
-
     setUpdateStatus("installing");
-    setDownloadProgress(null);
-    setUpdateMessage("Downloading update...");
-
-    function onDownloadEvent(event: DownloadEvent) {
-      if (event.event === "Started") {
-        downloaded = 0;
-        contentLength = event.data.contentLength ?? 0;
-        setDownloadProgress(contentLength > 0 ? 0 : null);
-      }
-
-      if (event.event === "Progress") {
-        downloaded += event.data.chunkLength;
-
-        if (contentLength > 0) {
-          setDownloadProgress(Math.min(100, Math.round((downloaded / contentLength) * 100)));
-        }
-      }
-
-      if (event.event === "Finished") {
-        setDownloadProgress(100);
-        setUpdateMessage("Installing update...");
-      }
-    }
+    setUpdateMessage("Opening the Stream Pad updater...");
 
     try {
-      await availableUpdate.downloadAndInstall(onDownloadEvent);
-      setUpdateMessage("Update installed. Restarting...");
-      await relaunch();
+      await invoke<void>("install_update_with_visual_installer", {
+        version: availableUpdate.version,
+      });
     } catch (error) {
       setUpdateStatus("error");
-      setDownloadProgress(null);
       setUpdateMessage(updateErrorMessage(error));
     }
   }
@@ -560,15 +531,6 @@ export function AppDrawer({
 
               <p className="drawerHint">Current version {APP_CONFIG.version}</p>
             </div>
-
-            {updateStatus === "installing" && (
-              <div className="updateProgressTrack">
-                <div
-                  className="updateProgressFill"
-                  style={{ width: `${downloadProgress ?? 100}%` }}
-                />
-              </div>
-            )}
 
             <div className="drawerActionRow">
               <button

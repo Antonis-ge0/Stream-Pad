@@ -79,6 +79,7 @@ mod windows_installer {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum AppMode {
         Install,
+        Update,
         Uninstall,
     }
 
@@ -119,7 +120,7 @@ mod windows_installer {
     impl AppState {
         fn new(mode: AppMode, uninstall_path: Option<PathBuf>) -> Self {
             let install_path = match mode {
-                AppMode::Install => display_install_path(),
+                AppMode::Install | AppMode::Update => display_install_path(),
                 AppMode::Uninstall => uninstall_path
                     .as_deref()
                     .and_then(Path::parent)
@@ -129,6 +130,7 @@ mod windows_installer {
 
             let detail = match mode {
                 AppMode::Install => "Ready to install Stream Pad.".to_string(),
+                AppMode::Update => "Ready to update Stream Pad.".to_string(),
                 AppMode::Uninstall => "Ready to uninstall Stream Pad.".to_string(),
             };
 
@@ -153,15 +155,17 @@ mod windows_installer {
                 }
 
                 view.phase = match self.mode {
-                    AppMode::Install => ViewPhase::Preparing,
+                    AppMode::Install | AppMode::Update => ViewPhase::Preparing,
                     AppMode::Uninstall => ViewPhase::Removing,
                 };
                 view.status = match self.mode {
                     AppMode::Install => "Preparing".to_string(),
+                    AppMode::Update => "Preparing".to_string(),
                     AppMode::Uninstall => "Uninstalling".to_string(),
                 };
                 view.detail = match self.mode {
                     AppMode::Install => "Preparing Stream Pad setup.".to_string(),
+                    AppMode::Update => "Preparing Stream Pad update.".to_string(),
                     AppMode::Uninstall => "Please wait while we remove Stream Pad.".to_string(),
                 };
                 view.download = None;
@@ -196,7 +200,12 @@ mod windows_installer {
             if let Ok(mut view) = self.view.lock() {
                 view.phase = ViewPhase::Downloading;
                 view.status = "Downloading".to_string();
-                view.detail = "Please wait while we install Stream Pad.".to_string();
+                view.detail = match self.mode {
+                    AppMode::Update => "Please wait while we update Stream Pad.".to_string(),
+                    AppMode::Install | AppMode::Uninstall => {
+                        "Please wait while we install Stream Pad.".to_string()
+                    }
+                };
                 view.download = Some(DownloadView {
                     downloaded,
                     total,
@@ -226,6 +235,7 @@ mod windows_installer {
 
     enum LaunchMode {
         Install,
+        Update,
         Uninstall { uninstall_path: PathBuf },
         Relaunched,
     }
@@ -234,6 +244,7 @@ mod windows_installer {
         match resolve_launch_mode() {
             LaunchMode::Relaunched => return,
             LaunchMode::Install => run_window(AppMode::Install, None),
+            LaunchMode::Update => run_window(AppMode::Update, None),
             LaunchMode::Uninstall { uninstall_path } => {
                 run_window(AppMode::Uninstall, Some(uninstall_path))
             }
@@ -247,7 +258,10 @@ mod windows_installer {
         let _ = BACKGROUND.set(generate_background(WINDOW_WIDTH, WINDOW_HEIGHT));
 
         unsafe {
-            if create_window(mode).is_some() {
+            if let Some(hwnd) = create_window(mode) {
+                if mode == AppMode::Update && state.begin() {
+                    start_worker(hwnd, Arc::clone(&state));
+                }
                 message_loop();
             }
         }
@@ -260,6 +274,10 @@ mod windows_installer {
     fn resolve_launch_mode() -> LaunchMode {
         let mut args = env::args_os().skip(1);
         while let Some(arg) = args.next() {
+            if arg == "--update" {
+                return LaunchMode::Update;
+            }
+
             if arg == "--uninstall" {
                 let uninstall_path = args
                     .next()
@@ -519,10 +537,12 @@ mod windows_installer {
         let instance = HINSTANCE(module.0);
         let class_name = match mode {
             AppMode::Install => w!("StreamPadVisualInstaller"),
+            AppMode::Update => w!("StreamPadVisualUpdater"),
             AppMode::Uninstall => w!("StreamPadVisualUninstaller"),
         };
         let title = match mode {
             AppMode::Install => w!("Stream Pad Installer"),
+            AppMode::Update => w!("Stream Pad Updater"),
             AppMode::Uninstall => w!("Stream Pad Uninstaller"),
         };
         let cursor = LoadCursorW(None, IDC_ARROW).ok();
@@ -854,6 +874,7 @@ mod windows_installer {
 
         let path_label = match mode {
             AppMode::Install => format!("Install path: {}", view.install_path),
+            AppMode::Update => format!("Update path: {}", view.install_path),
             AppMode::Uninstall => format!("Installed path: {}", view.install_path),
         };
         draw_centered_text(
@@ -871,6 +892,7 @@ mod windows_installer {
 
         let second_line = match mode {
             AppMode::Install => format!("C drive free space: {}", view.free_space),
+            AppMode::Update => format!("C drive free space: {}", view.free_space),
             AppMode::Uninstall => "Stream Pad will be removed from this PC.".to_string(),
         };
         draw_centered_text(
@@ -890,6 +912,7 @@ mod windows_installer {
             hdc,
             match mode {
                 AppMode::Install => "Install",
+                AppMode::Update => "Update",
                 AppMode::Uninstall => "Uninstall",
             },
             strong_font,
@@ -1304,7 +1327,7 @@ mod windows_installer {
         let hwnd_value = hwnd.0 as isize;
         thread::spawn(move || {
             let result = match state.mode {
-                AppMode::Install => install_stream_pad(&state),
+                AppMode::Install | AppMode::Update => install_stream_pad(&state),
                 AppMode::Uninstall => uninstall_stream_pad(&state),
             };
 
@@ -1312,6 +1335,7 @@ mod windows_installer {
                 Ok(()) => {
                     let detail = match state.mode {
                         AppMode::Install => "Stream Pad has been installed.",
+                        AppMode::Update => "Stream Pad has been updated.",
                         AppMode::Uninstall => "Stream Pad has been removed.",
                     };
                     state.set_phase(ViewPhase::Complete, "Done", detail);
@@ -1327,19 +1351,29 @@ mod windows_installer {
     }
 
     fn install_stream_pad(state: &AppState) -> Result<(), String> {
+        let is_update = state.mode == AppMode::Update;
+
         state.set_phase(
             ViewPhase::Preparing,
             "Preparing",
-            "Preparing Stream Pad setup.",
+            if is_update {
+                "Preparing Stream Pad update."
+            } else {
+                "Preparing Stream Pad setup."
+            },
         );
 
         let installer = resolve_installer(state)?;
         state.set_phase(
             ViewPhase::Installing,
-            "Installing",
-            "Please wait while we install Stream Pad.",
+            if is_update { "Updating" } else { "Installing" },
+            if is_update {
+                "Please wait while we update Stream Pad."
+            } else {
+                "Please wait while we install Stream Pad."
+            },
         );
-        run_inner_installer(&installer)
+        run_inner_installer(&installer, is_update)
     }
 
     fn uninstall_stream_pad(state: &AppState) -> Result<(), String> {
@@ -1531,9 +1565,15 @@ mod windows_installer {
             })
     }
 
-    fn run_inner_installer(installer: &Path) -> Result<(), String> {
+    fn run_inner_installer(installer: &Path, is_update: bool) -> Result<(), String> {
+        let args = if is_update {
+            vec!["/S", "/R", "/UPDATE"]
+        } else {
+            vec!["/S", "/R"]
+        };
+
         let status = Command::new(installer)
-            .args(["/S", "/R"])
+            .args(args)
             .status()
             .map_err(|error| format!("Could not start the Stream Pad setup: {error}"))?;
 
